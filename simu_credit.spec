@@ -3,11 +3,13 @@
 # À lancer sur chaque système cible (PyInstaller ne sait pas compiler pour un autre système) :
 #   - macOS   -> dist/Simulateur de credit.app (affiché « Simulateur de crédit »)
 #   - Windows -> dist/SimulateurCredit.exe (un seul fichier)
+import re
 import sys
 
 NOM = "Simulateur de credit"  # nom de fichier sans accent : codesign échoue sinon sur macOS
 NOM_AFFICHE = "Simulateur de crédit"
-VERSION = "0.1.0"
+# Version lue dans simu_credit/__init__.py (source unique)
+VERSION = re.search(r'__version__ = "(.+?)"', open("simu_credit/__init__.py", encoding="utf-8").read()).group(1)
 
 # Modules Qt inutiles ici : les exclure allège nettement l'application
 EXCLUS = [

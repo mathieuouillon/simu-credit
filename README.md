@@ -69,9 +69,25 @@ uv run pyinstaller simu_credit.spec --noconfirm
   `ditto -c -k --keepParent "dist/Simulateur de credit.app" Simulateur-de-credit-macOS.zip`
 - **Windows** : `dist/SimulateurCredit.exe`, un seul fichier.
 
-Sans Windows sous la main, le workflow [construire.yml](.github/workflows/construire.yml) construit
-les versions Windows, macOS Apple Silicon et macOS Intel sur GitHub (gratuit pour un dépôt public) :
-onglet *Actions* > *Construire l'application* > *Run workflow*, puis télécharger les fichiers produits.
+### Publier une nouvelle version
+
+Le workflow [construire.yml](.github/workflows/construire.yml) construit les versions Windows,
+macOS Apple Silicon et macOS Intel sur GitHub et publie la release automatiquement :
+
+1. mettre à jour `__version__` dans [simu_credit/__init__.py](simu_credit/__init__.py), committer et pousser ;
+2. créer et pousser l'étiquette correspondante :
+
+```bash
+git tag v0.2.0
+```
+
+```bash
+git push origin v0.2.0
+```
+
+GitHub relance les tests, construit les trois fichiers puis crée la release avec eux (le texte de
+[NOTES_RELEASE.md](.github/NOTES_RELEASE.md) suivi de la liste des changements). La publication est
+refusée si l'étiquette ne correspond pas à `__version__` ou si un test échoue.
 
 **Premier lancement** (l'application n'est pas signée par un éditeur reconnu) :
 
