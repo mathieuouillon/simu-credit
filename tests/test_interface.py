@@ -303,7 +303,13 @@ def test_cartes_adaptatives():
 
 def test_entete_masque_les_textes_secondaires_si_etroit():
     fenetre = FenetrePrincipale()
-    fenetre.resize(1900, 900)
+    # Largeur nécessaire mesurée plutôt que supposée : elle dépend des polices du système
+    # (sur les machines de test sans police, les textes sont deux fois plus larges)
+    e = fenetre._entete
+    elements = [e.itemAt(k).widget() for k in range(e.count()) if e.itemAt(k).widget()]
+    marges = e.contentsMargins()
+    besoin = sum(w.sizeHint().width() + e.spacing() for w in elements) + marges.left() + marges.right() + 40
+    fenetre.resize(besoin + 100, 900)
     fenetre.show()
     APP.processEvents()
     assert all(t.isVisible() for t in fenetre._facultatifs)
