@@ -19,7 +19,7 @@ from PySide6.QtCharts import (
     QValueAxis,
 )
 from PySide6.QtCore import QAbstractTableModel, QLocale, QMargins, QModelIndex, QSettings, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPalette, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QPainter, QPalette, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QAbstractSpinBox,
@@ -1302,6 +1302,7 @@ class EcranSimulation(QWidget):
 # --------------------------------------------------------------------------- fenêtre
 
 CHEVRON = (Path(__file__).parent / "assets" / "chevron-down.svg").as_posix()
+LOGO = (Path(__file__).parent / "assets" / "logo.png").as_posix()  # généré par outils/generer_icones.py
 
 STYLE = """
 QMainWindow, QWidget#central { background: #f5f6f8; }
@@ -1312,10 +1313,6 @@ QToolTip {
 
 /* En-tête */
 QFrame#entete { background: white; border-bottom: 1px solid #e6e8ec; }
-QLabel#logo {
-    background: #2563eb; color: white; border-radius: 8px;
-    font-size: 16px; font-weight: 700; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px;
-}
 QLabel#titreApp { font-size: 15px; font-weight: 600; }
 QLabel#badge {
     background: #eff6ff; color: #1d4ed8; border-radius: 9px; padding: 2px 9px;
@@ -1468,9 +1465,9 @@ class FenetrePrincipale(QMainWindow):
         e = QHBoxLayout(entete)
         e.setContentsMargins(20, 12, 20, 12)
         e.setSpacing(10)
-        logo = QLabel("€")
-        logo.setObjectName("logo")
-        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo = QLabel()
+        logo.setPixmap(QIcon(LOGO).pixmap(QSize(32, 32), self.devicePixelRatioF()))
+        logo.setToolTip("Simulateur de crédit et d'épargne")
         titre = LibelleSouple("Simulateur de crédit et d'épargne")
         titre.setObjectName("titreApp")
         badge = LibelleSouple("Outil pédagogique")
@@ -1562,6 +1559,7 @@ def appliquer_theme(app: QApplication) -> None:
     app.setStyle("Fusion")
     app.setPalette(palette_claire())
     app.setStyleSheet(STYLE)
+    app.setWindowIcon(QIcon(LOGO))  # icône de la fenêtre et du Dock / de la barre des tâches
 
 
 def main() -> None:

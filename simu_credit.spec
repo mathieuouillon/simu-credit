@@ -1,4 +1,5 @@
-# Construction de l'application autonome, sans installation :
+# Construction de l'application autonome, sans installation
+# (icônes : icones/, régénérées par « uv run python outils/generer_icones.py ») :
 #   uv run pyinstaller simu_credit.spec --noconfirm
 # À lancer sur chaque système cible (PyInstaller ne sait pas compiler pour un autre système) :
 #   - macOS   -> dist/Simulateur de credit.app (affiché « Simulateur de crédit »)
@@ -28,11 +29,12 @@ a = Analysis(
 pyz = PYZ(a.pure)
 
 if sys.platform == "darwin":
-    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name=NOM, console=False)
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name=NOM, console=False, icon="icones/icone.icns")
     coll = COLLECT(exe, a.binaries, a.datas, name=NOM)
     app = BUNDLE(
         coll,
         name=f"{NOM}.app",
+        icon="icones/icone.icns",
         bundle_identifier="fr.enseignement.simulateur-credit",
         version=VERSION,
         info_plist={
@@ -45,4 +47,6 @@ if sys.platform == "darwin":
     )
 else:
     # Windows / Linux : un seul exécutable, sans fenêtre de console
-    exe = EXE(pyz, a.scripts, a.binaries, a.datas, name="SimulateurCredit", console=False)
+    exe = EXE(
+        pyz, a.scripts, a.binaries, a.datas, name="SimulateurCredit", console=False, icon="icones/icone.ico"
+    )

@@ -1,3 +1,5 @@
+<img src="simu_credit/assets/logo.png" width="96" alt="Logo">
+
 # Simulateur de crédit et d'épargne
 
 > **Outil pédagogique**, destiné uniquement à l'enseignement. Les résultats ne constituent ni une offre
@@ -107,6 +109,13 @@ git push origin v0.2.0
 GitHub relance les tests, construit les trois fichiers puis crée la release avec eux (le texte de
 [NOTES_RELEASE.md](.github/NOTES_RELEASE.md) suivi de la liste des changements). La publication est
 refusée si l'étiquette ne correspond pas à `__version__` ou si un test échoue.
+
+Le logo et les icônes (`icones/icone.icns` pour macOS, `icones/icone.ico` pour Windows) sont générés à partir
+d'un seul dessin vectoriel par [generer_icones.py](outils/generer_icones.py) :
+
+```bash
+uv run python outils/generer_icones.py
+```
 
 **Premier lancement** (l'application n'est pas signée par un éditeur reconnu) :
 
