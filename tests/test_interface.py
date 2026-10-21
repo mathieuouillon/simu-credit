@@ -204,3 +204,71 @@ def test_changement_de_type_remet_les_valeurs_par_defaut(ecran):
         assert e.montant.value() == p.montant
         assert e.assurance.value() == p.assurance
         assert e.taux_reference.isChecked()
+
+
+# --------------------------------------------------------------------------- épargne
+
+from simu_credit.ecran_epargne import PERSONNALISE, PLACEMENTS  # noqa: E402
+from simu_credit.epargne import simuler_epargne, versement_pour_objectif  # noqa: E402
+
+
+@pytest.fixture
+def epargne():
+    fenetre = FenetrePrincipale()
+    fenetre.activite.setCurrentIndex(1)
+    yield fenetre.ecran_epargne
+    fenetre.close()
+
+
+def _cartes_epargne(e, r):
+    c = e.resultats.cartes
+    assert c["final"].valeur.text() == eur(r.capital_final)
+    assert c["interets"].valeur.text() == eur(r.interets_nets)
+    assert c["reel"].valeur.text() == eur(r.capital_final_reel)
+    assert c["verse"].valeur.text() == eur(r.total_verse)
+    assert c["prelevements"].valeur.text() == eur(r.prelevements)
+    assert c["net"].valeur.text() == pct(r.rendement_net)
+
+
+def test_epargne_chaque_placement(epargne):
+    e = epargne
+    e.capital_initial.setValue(2_000)
+    e.versement.setValue(150)
+    e.duree.setValue(8)
+    e.inflation.setValue(3.1)
+    for index, p in enumerate(PLACEMENTS[:PERSONNALISE]):
+        e.placement.setCurrentIndex(index)
+        assert e.taux.value() == pytest.approx(p.taux) and not e.taux.isEnabled()
+        _cartes_epargne(e, simuler_epargne(2_000, 150, 8, p.taux, p.prelevements, 3.1))
+
+
+def test_epargne_personnalise_et_objectif(epargne):
+    e = epargne
+    e.placement.setCurrentIndex(PERSONNALISE)
+    assert e.taux.isEnabled()
+    e.taux.setValue(4.0)
+    e.prelevements.setValue(30.0)
+    e.mode.setCurrentIndex(1)
+    e.objectif.setValue(50_000)
+    e.duree.setValue(15)
+    v = versement_pour_objectif(50_000, e.capital_initial.value(), 15, 4.0, 30.0)
+    r = simuler_epargne(e.capital_initial.value(), v, 15, 4.0, 30.0, e.inflation.value())
+    _cartes_epargne(e, r)
+    assert r.capital_final == pytest.approx(50_000)
+    assert eur(v) in e.resultats.indicateurs.text()
+
+
+def test_epargne_tables_et_plafond(epargne):
+    e = epargne
+    e.placement.setCurrentIndex(1)  # LDDS, plafond 12 000 €
+    e.capital_initial.setValue(5_000)
+    e.versement.setValue(200)
+    e.duree.setValue(10)
+    assert e.message.isVisibleTo(e) and "plafond" in e.message.text()
+    annees = e.resultats.table_annees
+    assert annees.rowCount() == 10
+    r = e.resultats.resultat
+    assert annees.item(9, 4).text() == eur(r.capital_final)
+    placements = e.resultats.table_placements
+    assert placements.rowCount() == PERSONNALISE
+    assert placements.item(1, 7).text() == "dépassé an 3"

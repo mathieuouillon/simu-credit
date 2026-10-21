@@ -1,9 +1,10 @@
-# Simulateur de crédit
+# Simulateur de crédit et d'épargne
 
 > **Outil pédagogique**, destiné uniquement à l'enseignement. Les résultats ne constituent ni une offre
 > de prêt, ni un conseil financier. Les taux de référence sont des exemples relevés à une date donnée.
 
-Application de bureau (PySide6 / Qt) pour simuler un crédit **à la consommation**, **auto** ou **immobilier**.
+Application de bureau (PySide6 / Qt) pour simuler un crédit **à la consommation**, **auto** ou **immobilier**,
+ainsi qu'une **épargne** à versements réguliers (onglet « Épargne » de l'en-tête).
 Un menu « Type de crédit » adapte le formulaire (champs affichés et valeurs par défaut) ; les résultats se recalculent à chaque modification.
 
 ## Lancer
@@ -42,6 +43,23 @@ uv run simu-credit
   capacité d'emprunt au seuil HCSF de 35 % d'endettement.
 - Pour chaque crédit : mensualité, **TAEG** (actuariel, frais et assurance inclus), coût total, graphiques,
   tableau d'amortissement mensuel exportable en CSV (format Excel français).
+
+## Épargne
+
+- **Placements de référence** (octobre 2026) : Livret A et LDDS 1,7 %, LEP 2,5 %, PEL ouvert en 2026 2 %
+  (PFU 30 %), assurance vie fonds en euros 2,63 % (moyenne 2025, ACPR ; prélèvements sociaux 17,2 %),
+  ou taux et prélèvements personnalisés. Liste et sources dans `PLACEMENTS`
+  ([ecran_epargne.py](simu_credit/ecran_epargne.py)).
+- Deux modes : partir des **versements** (capital final) ou d'un **objectif** (versement mensuel nécessaire).
+- Capital final, intérêts nets, impôt et prélèvements, rendement net et **réel** (après inflation),
+  valeur en euros d'aujourd'hui ; avertissement si un plafond de versements est dépassé ou si
+  l'épargne perd du pouvoir d'achat.
+- Onglets : graphique « boule de neige », **Comment c'est calculé** (taux équivalent, intérêts composés,
+  formule de la valeur acquise, fiscalité, inflation, règle de 72, effet de commencer 5 ans plus tôt),
+  comparaison de tous les placements, tableau année par année.
+- Hypothèses : taux mensuel équivalent (1 + r)^(1/12) − 1, versements en fin de mois, intérêts capitalisés
+  chaque mois, prélèvements retenus le 31 décembre ; l'impôt sur le revenu de l'assurance vie (dû au
+  retrait) n'est pas simulé. Moteur de calcul : [epargne.py](simu_credit/epargne.py).
 
 ## Hypothèses de calcul
 

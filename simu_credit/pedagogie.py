@@ -280,3 +280,170 @@ def _a_retenir(r: ResultatCredit, comparaison: Sequence[ResultatCredit]) -> list
             if plus_long:
                 points[-1] += " Allonger la durée allège la mensualité mais coûte plus cher au total."
     return points
+
+
+# --------------------------------------------------------------------------- épargne
+
+LEXIQUE_EPARGNE = {
+    "Intérêts composés": (
+        "Les intérêts s'ajoutent au capital et rapportent à leur tour des intérêts : "
+        "l'épargne grossit de plus en plus vite avec le temps (effet « boule de neige »)."
+    ),
+    "Taux brut / rendement net": (
+        "Le taux brut est celui annoncé par la banque ; le rendement net est ce qui reste après "
+        "impôt et prélèvements sociaux."
+    ),
+    "Prélèvements sociaux et PFU": (
+        "Les intérêts de la plupart des placements sont taxés : prélèvements sociaux (17,2 % sur "
+        "l'assurance vie) ou prélèvement forfaitaire unique de 30 % (PEL). Livret A, LDDS et LEP "
+        "en sont exonérés."
+    ),
+    "Inflation": "Hausse générale des prix. Elle réduit ce qu'on peut acheter avec une même somme.",
+    "Pouvoir d'achat / euros d'aujourd'hui": (
+        "Valeur d'une somme future ramenée aux prix actuels : capital ÷ (1 + inflation)^années."
+    ),
+    "Rendement réel": (
+        "Rendement net corrigé de l'inflation. S'il est négatif, l'épargne perd du pouvoir d'achat "
+        "même si son montant augmente."
+    ),
+    "Plafond de versements": (
+        "Montant maximal qu'on peut déposer sur un livret réglementé (22 950 € pour le Livret A). "
+        "Les intérêts, eux, peuvent faire dépasser ce plafond."
+    ),
+    "Règle de 72": "Pour un rendement de r %, une somme double en environ 72 / r années.",
+}
+
+
+def expliquer_epargne(r, *, objectif: float | None, plus_tot) -> str:
+    """HTML du panneau « Comment c'est calculé » pour une simulation d'épargne.
+
+    `r` : ResultatEpargne ; `plus_tot` : la même épargne commencée 5 ans plus tôt (ou None).
+    """
+    from simu_credit.epargne import duree_doublement, taux_mensuel
+
+    n = 12 * r.duree_annees
+    i = taux_mensuel(r.taux_annuel)
+    C0, V = r.capital_initial, r.versement_mensuel
+    f = r.taux_prelevement
+    sections: list[str] = []
+
+    # 1. Taux mensuel équivalent
+    sections.append(_section(1, "Du taux annuel au taux mensuel (i)", (
+        "<p>Pour l'épargne, on utilise le taux mensuel <b>équivalent</b> : placé 12 mois, il redonne "
+        "exactement le taux annuel annoncé. (Pour un crédit, la convention française divise "
+        "simplement par 12.)</p>"
+        + _formule(
+            f"i = (1 + {pct(r.taux_annuel)})<sup>1/12</sup> − 1 = <b>{pct(i * 100, 4)}</b> par mois",
+            f"vérification : (1 + i)<sup>12</sup> − 1 = {pct(((1 + i) ** 12 - 1) * 100)}",
+        )
+    )))
+
+    # 2. Intérêts composés : la 1re année
+    a1 = r.annees[0]
+    sections.append(_section(2, "Les intérêts composés", (
+        "<p>Chaque mois, le solde rapporte i ; ces intérêts s'ajoutent au solde et rapportent à leur "
+        "tour : ce sont les <b>intérêts composés</b>.</p>"
+        + _formule(
+            f"1er mois : intérêts = {nombre(C0)} × {nombre(i, 6)} = {eur(C0 * i)}, puis versement de {eur(V)}",
+            f"sur toute la 1re année : {eur(a1.interets)} d'intérêts bruts",
+            f"sur la dernière année : {eur(r.annees[-1].interets)} d'intérêts bruts",
+        )
+        + "<p>Les intérêts de la dernière année sont bien plus élevés que ceux de la première : "
+        "le capital qui rapporte a grossi, intérêts compris.</p>"
+    )))
+
+    # 3. Valeur acquise
+    if f == 0:
+        if i > 0:
+            q = (1 + i) ** n
+            formule = _formule(
+                "capital final = C<sub>0</sub> × (1 + i)<sup>n</sup> + V × ((1 + i)<sup>n</sup> − 1) / i",
+                f"= {nombre(C0)} × {nombre(1 + i, 6)}<sup>{n}</sup> + {nombre(V)} × ({nombre(q, 4)} − 1) / {nombre(i, 6)}",
+                f"= {nombre(C0 * q)} + {nombre(V * (q - 1) / i)} = <b>{eur(r.capital_final)}</b>",
+            )
+        else:
+            formule = _formule(
+                "Taux nul : capital final = C<sub>0</sub> + V × n",
+                f"= {nombre(C0)} + {nombre(V)} × {n} = <b>{eur(r.capital_final)}</b>",
+            )
+        corps = (
+            f"<p>Avec un capital de départ C<sub>0</sub>, un versement V en fin de chaque mois et "
+            f"n = {n} mois :</p>" + formule
+        )
+    else:
+        corps = (
+            f"<p>Les intérêts étant taxés chaque année, le calcul se fait année par année (voir le "
+            f"tableau annuel) : on obtient <b>{eur(r.capital_final)}</b>.</p>"
+        )
+    sections.append(_section(3, f"Le capital final après {r.duree_annees} ans", corps + _tableau([
+        ("Total versé (capital de départ + versements)", eur(r.total_verse)),
+        ("+ intérêts bruts", eur(r.interets_bruts)),
+        ("− impôt et prélèvements sociaux", eur(r.prelevements)),
+        ("<b>= Capital final</b>", f"<b>{eur(r.capital_final)}</b>"),
+    ])))
+
+    # 4. Prélèvements
+    if f > 0:
+        corps = (
+            f"<p>Chaque 31 décembre, {pct(f, 1)} des intérêts de l'année sont prélevés.</p>"
+            + _formule(
+                f"1re année : {nombre(a1.interets)} × {pct(f, 1)} = {eur(a1.prelevements)}",
+                f"rendement net = {pct(r.taux_annuel)} × (1 − {pct(f, 1)}) = <b>{pct(r.rendement_net)}</b> par an",
+                f"total prélevé en {r.duree_annees} ans : <b>{eur(r.prelevements)}</b>",
+            )
+        )
+    else:
+        corps = "<p>Ce placement est exonéré : les intérêts ne sont ni imposés ni soumis aux prélèvements sociaux.</p>"
+    sections.append(_section(4, "Impôt et prélèvements sociaux", corps))
+
+    # 5. Inflation
+    perte = r.rendement_reel < 0
+    sections.append(_section(5, f"L'inflation ({pct(r.inflation, 1)} par an)", (
+        "<p>Pour savoir ce que le capital final permettra d'acheter, on le ramène aux prix d'aujourd'hui :</p>"
+        + _formule(
+            f"valeur en euros d'aujourd'hui = {nombre(r.capital_final)} / (1 + {pct(r.inflation, 1)})<sup>{r.duree_annees}</sup>"
+            f" = <b>{eur(r.capital_final_reel)}</b>",
+            f"rendement réel = (1 + {pct(r.rendement_net)}) / (1 + {pct(r.inflation, 1)}) − 1 = <b>{pct(r.rendement_reel)}</b> par an",
+        )
+        + ("<p><b>Le rendement réel est négatif</b> : le montant épargné augmente, mais il permet "
+           "d'acheter de moins en moins.</p>" if perte else
+           "<p>Le rendement réel est positif : l'épargne gagne du pouvoir d'achat.</p>")
+    )))
+
+    numero = 6
+    if objectif is not None:
+        sections.append(_section(numero, "Le versement pour atteindre l'objectif", (
+            "<p>Le capital final augmente proportionnellement au versement mensuel : "
+            "capital final = A + B × V, où A est ce que devient le capital de départ seul et B ce que "
+            "rapporte 1 € versé chaque mois. On en déduit V = (objectif − A) / B.</p>"
+            + _formule(f"objectif {eur(objectif)} → versement mensuel <b>{eur(V)}</b>")
+        )))
+        numero += 1
+
+    # À retenir
+    points = [
+        f"Les intérêts représentent <b>{pct(r.part_interets, 0)}</b> du capital final.",
+    ]
+    doublement = duree_doublement(r.rendement_net)
+    if math.isfinite(doublement):
+        points.append(
+            f"À {pct(r.rendement_net)} net par an, une somme placée double en <b>{nombre(doublement, 0)} ans</b> "
+            f"(règle de 72 : 72 / {nombre(r.rendement_net, 2)} ≈ {nombre(72 / r.rendement_net, 0)} ans)."
+        )
+    if plus_tot is not None:
+        points.append(
+            f"En commençant <b>5 ans plus tôt</b> avec le même versement, on aurait "
+            f"<b>{eur(plus_tot.capital_final, 0)}</b>, soit {eur(plus_tot.capital_final - r.capital_final, 0)} de plus "
+            f"pour seulement {eur(plus_tot.total_verse - r.total_verse, 0)} versés en plus."
+        )
+    if perte:
+        points.append("Avec une inflation supérieure au rendement net, l'épargne perd du pouvoir d'achat.")
+    sections.append(f"<h3>{numero}. À retenir</h3><ul>{''.join(f'<li>{p}</li>' for p in points)}</ul>")
+
+    lexique = "".join(f"<p><b>{terme}</b> — {definition}</p>" for terme, definition in LEXIQUE_EPARGNE.items())
+    sections.append(f"<h3>Lexique</h3>{lexique}")
+    entete = (
+        "<h2>Comment c'est calculé</h2>"
+        "<p class='discret'>Chaque étape reprend les chiffres de la simulation affichée.</p>"
+    )
+    return f"<html><head><style>{STYLE}</style></head><body>{entete}{''.join(sections)}</body></html>"

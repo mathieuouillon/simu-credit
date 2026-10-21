@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QSplitter,
+    QStackedWidget,
     QTableView,
     QTableWidget,
     QTableWidgetItem,
@@ -127,6 +128,35 @@ class Segmente(QFrame):
         self.groupe.idClicked.connect(combo.setCurrentIndex)
         combo.currentIndexChanged.connect(lambda i: self.groupe.button(i).setChecked(True))
         self.groupe.button(max(combo.currentIndex(), 0)).setChecked(True)
+
+
+def nouveau_graphique(titre: str) -> QChart:
+    """Graphique au style de l'application : fond blanc, titre sobre, légende à pastilles."""
+    chart = QChart()
+    chart.setTitle(titre)
+    chart.setAnimationOptions(QChart.AnimationOption.NoAnimation)
+    chart.setBackgroundBrush(QBrush(QColor("white")))
+    chart.setBackgroundPen(QPen(Qt.PenStyle.NoPen))
+    chart.setBackgroundRoundness(0)
+    police_titre = QFont(chart.titleFont())
+    police_titre.setPointSizeF(police_titre.pointSizeF() * 1.05)
+    police_titre.setWeight(QFont.Weight.DemiBold)
+    chart.setTitleFont(police_titre)
+    chart.setTitleBrush(TEXTE)
+    chart.legend().setLabelColor(QColor("#374151"))
+    chart.legend().setMarkerShape(QLegend.MarkerShape.MarkerShapeCircle)
+    chart.setMargins(QMargins(4, 4, 16, 4))
+    return chart
+
+
+def styliser(chart: QChart) -> None:
+    """Axes discrets : libellés gris, grille très claire, sans cadre."""
+    for axe in chart.axes():
+        axe.setLabelsColor(TEXTE_SECONDAIRE)
+        axe.setTitleBrush(TEXTE_SECONDAIRE)
+        axe.setGridLineColor(GRILLE)
+        axe.setLinePen(QPen(QColor("#d1d5db")))
+        axe.setShadesVisible(False)
 
 
 # --------------------------------------------------------------------------- résultats
@@ -623,31 +653,11 @@ class PanneauResultats(QWidget):
         self.vue_barres.setChart(chart)
 
     def _nouveau_graphique(self, titre: str) -> QChart:
-        chart = QChart()
-        chart.setTitle(titre)
-        chart.setAnimationOptions(QChart.AnimationOption.NoAnimation)
-        chart.setBackgroundBrush(QBrush(QColor("white")))
-        chart.setBackgroundPen(QPen(Qt.PenStyle.NoPen))
-        chart.setBackgroundRoundness(0)
-        police_titre = QFont(chart.titleFont())
-        police_titre.setPointSizeF(police_titre.pointSizeF() * 1.05)
-        police_titre.setWeight(QFont.Weight.DemiBold)
-        chart.setTitleFont(police_titre)
-        chart.setTitleBrush(TEXTE)
-        chart.legend().setLabelColor(QColor("#374151"))
-        chart.legend().setMarkerShape(QLegend.MarkerShape.MarkerShapeCircle)
-        chart.setMargins(QMargins(4, 4, 16, 4))
-        return chart
+        return nouveau_graphique(titre)
 
     @staticmethod
     def _styliser(chart: QChart) -> None:
-        """Axes discrets : libellés gris, grille très claire, sans cadre."""
-        for axe in chart.axes():
-            axe.setLabelsColor(TEXTE_SECONDAIRE)
-            axe.setTitleBrush(TEXTE_SECONDAIRE)
-            axe.setGridLineColor(GRILLE)
-            axe.setLinePen(QPen(QColor("#d1d5db")))
-            axe.setShadesVisible(False)
+        styliser(chart)
 
     def exporter_csv(self) -> None:
         if self.resultat is None:
@@ -1333,8 +1343,18 @@ def palette_claire() -> QPalette:
 class FenetrePrincipale(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Simulateur de crédit — outil pédagogique")
+        from simu_credit import __version__
+        from simu_credit.ecran_epargne import EcranEpargne  # import local : ecran_epargne importe ce module
+
+        self.setWindowTitle("Simulateur de crédit et d'épargne — outil pédagogique")
         self.ecran = EcranSimulation()
+        self.ecran_epargne = EcranEpargne()
+        self.pages = QStackedWidget()
+        self.pages.addWidget(self.ecran)
+        self.pages.addWidget(self.ecran_epargne)
+        self.activite = QComboBox(self)
+        self.activite.addItems(["Crédit", "Épargne"])
+        self.activite.hide()
 
         entete = QFrame()
         entete.setObjectName("entete")
@@ -1344,22 +1364,26 @@ class FenetrePrincipale(QMainWindow):
         logo = QLabel("€")
         logo.setObjectName("logo")
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        titre = QLabel("Simulateur de crédit")
+        titre = QLabel("Simulateur de crédit et d'épargne")
         titre.setObjectName("titreApp")
         badge = QLabel("Outil pédagogique")
         badge.setObjectName("badge")
-        avertissement = QLabel("Simulations pour l'enseignement · ni offre de prêt, ni conseil financier")
+        avertissement = QLabel(f"Outil d'enseignement · ni offre, ni conseil financier · v{__version__}")
         avertissement.setObjectName("avertissement")
         avertissement.setToolTip(
-            "Les résultats ne constituent ni une offre de prêt, ni un conseil financier ; "
+            "Les résultats ne constituent ni une offre de prêt ou de placement, ni un conseil financier ; "
             "les taux de référence sont des exemples datés."
         )
         e.addWidget(logo)
         e.addWidget(titre)
         e.addWidget(badge)
         e.addStretch(1)
-        e.addWidget(Segmente(self.ecran.type_credit))
+        e.addWidget(Segmente(self.activite))
+        types_credit = Segmente(self.ecran.type_credit)
+        e.addWidget(types_credit)
         e.addStretch(1)
+        self.activite.currentIndexChanged.connect(self.pages.setCurrentIndex)
+        self.activite.currentIndexChanged.connect(lambda i: types_credit.setVisible(i == 0))
         e.addWidget(avertissement)
 
         central = QWidget()
@@ -1368,7 +1392,7 @@ class FenetrePrincipale(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(entete)
-        layout.addWidget(self.ecran, 1)
+        layout.addWidget(self.pages, 1)
         self.setCentralWidget(central)
         self.setMinimumSize(1100, 720)
         self.resize(1400, 900)

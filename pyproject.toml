@@ -1,7 +1,7 @@
 [project]
 name = "simu-credit"
 dynamic = ["version"]
-description = "Simulateur de crédit (consommation, auto, immobilier) avec interface graphique"
+description = "Simulateur de crédit et d'épargne pédagogique, avec interface graphique"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["PySide6>=6.8"]
