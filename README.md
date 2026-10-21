@@ -48,7 +48,8 @@ uv run simu-credit
 
 - **Placements de référence** (octobre 2026) : Livret A et LDDS 1,7 %, LEP 2,5 %, PEL ouvert en 2026 2 %
   (PFU 30 %), assurance vie fonds en euros 2,63 % (moyenne 2025, ACPR ; prélèvements sociaux 17,2 %),
-  ou taux et prélèvements personnalisés. Liste et sources dans `PLACEMENTS`
+  ou placement personnalisé. Comme pour le taux du crédit, une case « Réf. » à côté du taux et des
+  prélèvements donne la valeur actuelle ; la décocher permet de saisir sa propre valeur. Liste et sources dans `PLACEMENTS`
   ([ecran_epargne.py](simu_credit/ecran_epargne.py)).
 - Deux modes : partir des **versements** (capital final) ou d'un **objectif** (versement mensuel nécessaire).
 - Capital final, intérêts nets, impôt et prélèvements, rendement net et **réel** (après inflation),

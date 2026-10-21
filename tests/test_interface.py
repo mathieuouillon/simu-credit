@@ -311,3 +311,31 @@ def test_entete_masque_les_textes_secondaires_si_etroit():
     APP.processEvents()
     assert not fenetre._facultatifs[-1].isVisible()  # l'avertissement disparaît en premier
     fenetre.close()
+
+
+def test_epargne_case_reference(epargne):
+    e = epargne
+    e.placement.setCurrentIndex(0)  # Livret A : 1,7 %, exonéré
+    assert e.ref_taux.isChecked() and not e.taux.isEnabled()
+    # Décocher « Réf. » : la valeur actuelle reste, puis devient modifiable
+    e.ref_taux.setChecked(False)
+    assert e.taux.isEnabled() and e.taux.value() == pytest.approx(1.7)
+    e.taux.setValue(3.0)
+    e.ref_prelevements.setChecked(False)
+    e.prelevements.setValue(12.8)
+    r = simuler_epargne(e.capital_initial.value(), e.versement.value(), e.duree.value(), 3.0, 12.8,
+                        e.inflation.value())
+    _cartes_epargne(e, r)
+    # La comparaison garde les valeurs de référence et ajoute une ligne « vos valeurs »
+    t = e.resultats.table_placements
+    assert t.rowCount() == PERSONNALISE + 1
+    assert t.item(0, 1).text() == pct(1.7)
+    assert t.item(PERSONNALISE, 0).text() == "Livret A (vos valeurs)"
+    assert t.item(PERSONNALISE, 1).text() == pct(3.0)
+    # Recocher : retour à la valeur actuelle
+    e.ref_taux.setChecked(True)
+    assert e.taux.value() == pytest.approx(1.7) and not e.taux.isEnabled()
+    # Changer de placement recoche les deux cases
+    e.placement.setCurrentIndex(3)
+    assert e.ref_prelevements.isChecked() and e.prelevements.value() == pytest.approx(30.0)
+    assert e.resultats.table_placements.rowCount() == PERSONNALISE

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from PySide6.QtCharts import QBarCategoryAxis, QBarSet, QChartView, QLineSeries, QStackedBarSeries, QValueAxis
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -111,11 +112,14 @@ class EcranEpargne(QWidget):
         form.addRow("Durée", self.duree)
 
         EcranSimulation.section(form, "Rendement")
+        # Comme le taux du crédit : case « Réf. » cochée = valeur actuelle du placement, décochée = saisie libre
         self.taux = champ_taux(1.7, 20, 0.05)
-        form.addRow("Taux annuel brut", self.taux)
+        self.ref_taux = QCheckBox("Réf.")
+        form.addRow("Taux annuel brut", self._avec_reference(self.taux, self.ref_taux))
         self.prelevements = champ_taux(0, 100, 0.1)
         self.prelevements.setToolTip("Impôt et prélèvements sociaux retenus sur les intérêts")
-        form.addRow("Impôt et prélèvements", self.prelevements)
+        self.ref_prelevements = QCheckBox("Réf.")
+        form.addRow("Impôt et prélèvements", self._avec_reference(self.prelevements, self.ref_prelevements))
         self.inflation = champ_taux(2.0, 20, 0.1)
         self.inflation.setToolTip(
             "Hausse annuelle des prix supposée sur toute la durée.\n"
@@ -170,9 +174,45 @@ class EcranEpargne(QWidget):
             champ.valueChanged.connect(self.recalculer)
         self.mode.currentIndexChanged.connect(self.maj_visibilite)
         self.mode.currentIndexChanged.connect(self.recalculer)
+        self.ref_taux.toggled.connect(self.recalculer)
+        self.ref_prelevements.toggled.connect(self.recalculer)
         self.placement.currentIndexChanged.connect(self.appliquer_placement)
         self.maj_visibilite()
         self.appliquer_placement(0)
+
+    @staticmethod
+    def _avec_reference(champ: QWidget, case: QCheckBox) -> QWidget:
+        case.setChecked(True)
+        case.setToolTip("Cochée : valeur actuelle du placement. Décochez pour saisir votre propre valeur.")
+        ligne = QWidget()
+        disposition = QHBoxLayout(ligne)
+        disposition.setContentsMargins(0, 0, 0, 0)
+        disposition.addWidget(champ, 1)
+        disposition.addWidget(case)
+        return ligne
+
+    def _synchroniser_references(self) -> None:
+        """Champs cochés « Réf. » : valeur actuelle du placement, non modifiable."""
+        p = PLACEMENTS[self.placement.currentIndex()]
+        personnalise = self.placement.currentIndex() == PERSONNALISE
+        for champ, case, valeur in (
+            (self.taux, self.ref_taux, p.taux),
+            (self.prelevements, self.ref_prelevements, p.prelevements),
+        ):
+            case.setEnabled(not personnalise)  # un placement personnalisé n'a pas de valeur de référence
+            if personnalise and case.isChecked():
+                case.blockSignals(True)
+                case.setChecked(False)
+                case.blockSignals(False)
+            champ.setEnabled(not case.isChecked())
+            if case.isChecked():
+                champ.blockSignals(True)
+                champ.setValue(valeur)
+                champ.blockSignals(False)
+
+    @property
+    def valeurs_de_reference(self) -> bool:
+        return self.ref_taux.isChecked() and self.ref_prelevements.isChecked()
 
     @property
     def par_objectif(self) -> bool:
@@ -187,15 +227,13 @@ class EcranEpargne(QWidget):
         personnalise = index == PERSONNALISE
         self._chargement = True
         try:
-            if not personnalise:
-                self.taux.setValue(p.taux)
-                self.prelevements.setValue(p.prelevements)
-            self.taux.setEnabled(personnalise)
-            self.prelevements.setEnabled(personnalise)
+            for case in (self.ref_taux, self.ref_prelevements):
+                case.setChecked(not personnalise)  # nouveau placement : on repart des valeurs actuelles
         finally:
             self._chargement = False
         plafond = f" Plafond de versements : {eur(p.plafond, 0)}." if p.plafond else ""
-        self.note.setText(f"{p.nom} : {p.source}.{plafond} {p.note}".strip())
+        reference = "" if personnalise else " Décochez « Réf. » pour modifier le taux ou les prélèvements."
+        self.note.setText(f"{p.nom} : {p.source}.{plafond} {p.note}{reference}".strip())
         self.recalculer()
 
     def simuler(self, placement: Placement | None = None, duree: int | None = None) -> tuple[ResultatEpargne, float | None]:
@@ -218,6 +256,7 @@ class EcranEpargne(QWidget):
     def recalculer(self) -> None:
         if self._chargement:
             return
+        self._synchroniser_references()
         r, objectif = self.simuler()
         p = PLACEMENTS[self.placement.currentIndex()]
 
@@ -241,9 +280,15 @@ class EcranEpargne(QWidget):
 
         plus_tot = self.simuler(duree=self.duree.value() + 5)[0] if not self.par_objectif else None
         comparaison = [(pl, *self.simuler(pl)) for pl in PLACEMENTS[:PERSONNALISE]]
+        choisi = p
         if self.placement.currentIndex() == PERSONNALISE:
             comparaison.append((p, r, objectif))
-        self.resultats.afficher(r, objectif, plus_tot, comparaison, p)
+        elif not self.valeurs_de_reference:
+            # Valeurs modifiées : une ligne de plus pour les comparer aux valeurs de référence
+            choisi = replace(p, nom=f"{p.nom} (vos valeurs)", taux=self.taux.value(),
+                             prelevements=self.prelevements.value())
+            comparaison.append((choisi, r, objectif))
+        self.resultats.afficher(r, objectif, plus_tot, comparaison, choisi)
 
 
 class PanneauEpargne(QWidget):
@@ -314,8 +359,8 @@ class PanneauEpargne(QWidget):
         pc.setContentsMargins(0, 0, 0, 10)
         pc.addWidget(self.table_placements)
         aide = QLabel(
-            "Mêmes versements et même durée pour chaque placement, aux taux de référence. "
-            "La ligne en gras est le placement choisi."
+            "Mêmes versements et même durée pour chaque placement, aux valeurs de référence. "
+            "La ligne en gras est votre simulation ; « vos valeurs » signale un taux ou des prélèvements modifiés."
         )
         aide.setObjectName("note")
         aide.setWordWrap(True)
