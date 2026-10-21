@@ -18,7 +18,7 @@ from PySide6.QtCharts import (
     QStackedBarSeries,
     QValueAxis,
 )
-from PySide6.QtCore import QAbstractTableModel, QLocale, QMargins, QModelIndex, Qt, Signal
+from PySide6.QtCore import QAbstractTableModel, QLocale, QMargins, QModelIndex, QSettings, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPalette, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLayout,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -199,6 +200,117 @@ class CarteValeur(QFrame):
         layout.addWidget(self.valeur)
 
 
+class LibelleSouple(QLabel):
+    """Libellé qui garde sa largeur naturelle mais n'impose aucune largeur minimale à la fenêtre."""
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(0, super().minimumSizeHint().height())
+
+
+class GrilleCartes(QWidget):
+    """Cartes réparties sur autant de colonnes que la largeur le permet.
+
+    Les cartes clés (en grand) passent de 3 à 2 puis 1 par ligne, les cartes de détail de 4 à 1.
+    Une ligne incomplète partage toute la largeur entre ses cartes.
+    """
+
+    def __init__(self, cles: list[QWidget], details: list[QWidget], largeur_min: int = 190):
+        super().__init__()
+        self.cles, self.details, self.largeur_min = cles, details, largeur_min
+        self.grille = QGridLayout(self)
+        self.grille.setContentsMargins(0, 0, 0, 0)
+        self.grille.setSpacing(10)
+        # La largeur minimale est gérée ici, pas par la grille : sinon elle bloquerait le rétrécissement
+        self.grille.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        for c in range(12):
+            self.grille.setColumnStretch(c, 1)
+        self._disposition: tuple[int, int] | None = None
+        self._disposer(4 * largeur_min)
+
+    def _disposer(self, largeur: int) -> None:
+        par_ligne = max(1, largeur // self.largeur_min)
+        disposition = (min(len(self.cles), par_ligne) or 1, min(4, par_ligne))
+        if disposition == self._disposition:
+            return
+        self._disposition = disposition
+        while self.grille.count():
+            self.grille.takeAt(0)
+        ligne = 0
+        for cartes, colonnes in ((self.cles, disposition[0]), (self.details, disposition[1])):
+            for debut in range(0, len(cartes), colonnes):
+                rangee = cartes[debut:debut + colonnes]
+                portee = 12 // len(rangee)
+                for k, carte in enumerate(rangee):
+                    self.grille.addWidget(carte, ligne, k * portee, 1, portee)
+                ligne += 1
+        self.updateGeometry()
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(self.largeur_min, self.grille.minimumSize().height())
+
+    def sizeHint(self) -> QSize:
+        return QSize(4 * self.largeur_min, self.grille.sizeHint().height())
+
+    def resizeEvent(self, event) -> None:
+        self._disposer(event.size().width())
+        super().resizeEvent(event)
+
+
+class SeparateurResultats(QSplitter):
+    """Cartes de résultats en haut, onglets en bas, séparés par une poignée réglable.
+
+    Tant que la poignée n'a pas été déplacée, le haut prend la hauteur de son contenu sans priver
+    les onglets de HAUTEUR_ONGLETS pixels ; s'il manque de la place, les cartes défilent.
+    """
+
+    HAUTEUR_ONGLETS = 280
+
+    def __init__(self, contenu: QWidget, onglets: QWidget):
+        super().__init__(Qt.Orientation.Vertical)
+        self.setHandleWidth(14)
+        self.contenu = contenu
+        contenu.setObjectName("contenuCartes")
+        self.zone = QScrollArea()
+        self.zone.setObjectName("zoneCartes")
+        self.zone.setWidget(contenu)
+        self.zone.setWidgetResizable(True)
+        self.zone.setFrameShape(QFrame.Shape.NoFrame)
+        self.zone.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.addWidget(self.zone)
+        self.addWidget(onglets)
+        self.setCollapsible(1, False)
+        self.setStretchFactor(1, 1)
+        onglets.setMinimumHeight(160)
+        self.setToolTip("Faites glisser pour agrandir ou masquer les cartes de résultats")
+        self._manuel = False
+        self.splitterMoved.connect(self._deplace)
+
+    def _deplace(self, *_) -> None:
+        self._manuel = True
+
+    def ajuster(self) -> None:
+        if self._manuel:
+            return
+        total = self.height() - self.handleWidth()
+        if total <= 0:
+            return
+        disposition = self.contenu.layout()
+        largeur = self.zone.viewport().width()
+        if disposition.hasHeightForWidth():
+            besoin = disposition.totalHeightForWidth(largeur)
+        else:
+            besoin = self.contenu.sizeHint().height()
+        haut = max(0, min(besoin + 2, total - self.HAUTEUR_ONGLETS))
+        self.setSizes([haut, total - haut])
+
+    def ajuster_plus_tard(self) -> None:
+        QTimer.singleShot(0, self.ajuster)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.ajuster()
+
+
 class ModeleAmortissement(QAbstractTableModel):
     COLONNES = ["N°", "Mensualité", "Intérêts", "Capital", "Assurance", "Capital restant"]
 
@@ -279,31 +391,22 @@ class PanneauResultats(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 16, 20, 16)
 
-        # 1re ligne : les 3 chiffres clés ; dessous : les détails sur 4 colonnes
-        grille = QGridLayout()
-        grille.setSpacing(10)
+        # Chiffres clés en grand, puis les détails ; le nombre de colonnes suit la largeur
         self.cartes: dict[str, CarteValeur] = {}
-        cles = [c for c in self.CARTES if c[2]]
-        details = [c for c in self.CARTES if not c[2]]
-        for i, (cle, titre, avant) in enumerate(cles + details):
+        for cle, titre, avant in self.CARTES:
             carte = CarteValeur(titre, avant)
             if cle in self.AIDE_CARTES:
                 carte.setToolTip(LEXIQUE[self.AIDE_CARTES[cle]])
             self.cartes[cle] = carte
-            if avant:
-                grille.addWidget(carte, 0, i * 4, 1, 4)  # 3 cartes sur 12 colonnes
-            else:
-                # 4 cartes par ligne ; la dernière ligne, incomplète, se partage toute la largeur
-                j = i - len(cles)
-                ligne, rang = divmod(j, 4)
-                sur_la_ligne = min(4, len(details) - ligne * 4)
-                largeur = 12 // sur_la_ligne
-                grille.addWidget(carte, 1 + ligne, rang * largeur, 1, largeur)
+        grille = GrilleCartes(
+            [self.cartes[c[0]] for c in self.CARTES if c[2]],
+            [self.cartes[c[0]] for c in self.CARTES if not c[2]],
+        )
         haut = QWidget()
         h = QVBoxLayout(haut)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(10)
-        h.addLayout(grille)
+        h.addWidget(grille)
 
         self.zone_indicateurs = QLabel()
         self.zone_indicateurs.setObjectName("indicateurs")
@@ -313,15 +416,8 @@ class PanneauResultats(QWidget):
 
         # Séparateur réglable : on peut agrandir les onglets (explications, tableau) en réduisant les cartes
         self.onglets = QTabWidget()
-        self.onglets.setDocumentMode(False)
-        separateur = QSplitter(Qt.Orientation.Vertical)
-        separateur.setHandleWidth(14)
-        separateur.addWidget(haut)
-        separateur.addWidget(self.onglets)
-        separateur.setCollapsible(1, False)
-        separateur.setStretchFactor(1, 1)
-        separateur.setToolTip("Faites glisser pour agrandir ou masquer les cartes de résultats")
-        layout.addWidget(separateur, stretch=1)
+        self.separateur = SeparateurResultats(haut, self.onglets)
+        layout.addWidget(self.separateur, stretch=1)
 
         # Graphiques
         graphiques = QWidget()
@@ -331,7 +427,7 @@ class PanneauResultats(QWidget):
         self.vue_barres = QChartView()
         for vue in (self.vue_camembert, self.vue_barres):
             vue.setRenderHint(QPainter.RenderHint.Antialiasing)
-            vue.setMinimumHeight(280)
+            vue.setMinimumHeight(180)
         g.addWidget(self.vue_camembert, 2)
         g.addWidget(self.vue_barres, 3)
         self.onglets.addTab(graphiques, "Graphiques")
@@ -348,8 +444,6 @@ class PanneauResultats(QWidget):
         b = QVBoxLayout(budget)
         b.setContentsMargins(14, 14, 14, 14)
         b.setSpacing(10)
-        ligne_cartes = QHBoxLayout()
-        ligne_cartes.setSpacing(10)
         self.cartes_budget: dict[str, CarteValeur] = {}
         for cle, titre in [
             ("part_revenu", "Part du crédit dans le revenu"),
@@ -358,14 +452,14 @@ class PanneauResultats(QWidget):
             ("solde", "Solde du mois"),
         ]:
             self.cartes_budget[cle] = CarteValeur(titre)
-            ligne_cartes.addWidget(self.cartes_budget[cle])
-        b.addLayout(ligne_cartes)
+        b.addWidget(GrilleCartes([], list(self.cartes_budget.values())))
         self.resume_budget = QLabel()
         self.resume_budget.setObjectName("note")
+        self.resume_budget.setWordWrap(True)
         b.addWidget(self.resume_budget)
         self.vue_budget = QChartView()
         self.vue_budget.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.vue_budget.setMinimumHeight(300)
+        self.vue_budget.setMinimumHeight(200)
         b.addWidget(self.vue_budget, 1)
         self.onglets.addTab(budget, "Budget")
 
@@ -388,6 +482,7 @@ class PanneauResultats(QWidget):
         c.addWidget(self.table_comparaison)
         aide = QLabel("Double-cliquez sur une ligne pour retenir cette durée. La ligne en gras est la simulation en cours.")
         aide.setObjectName("note")
+        aide.setWordWrap(True)
         aide.setContentsMargins(14, 0, 14, 0)
         c.addWidget(aide)
         self.onglets.addTab(comparaison, "Comparer les durées")
@@ -411,6 +506,7 @@ class PanneauResultats(QWidget):
             "plus de capital que d'intérêts."
         )
         legende_bascule.setObjectName("note")
+        legende_bascule.setWordWrap(True)
         bouton_export = QPushButton("Exporter en CSV…")
         bouton_export.setCursor(Qt.CursorShape.PointingHandCursor)
         bouton_export.clicked.connect(self.exporter_csv)
@@ -455,6 +551,7 @@ class PanneauResultats(QWidget):
             lignes.append(f"{ind.libelle} : {valeur}")
         self.zone_indicateurs.setText("<br>".join(lignes))
         self.zone_indicateurs.setVisible(bool(lignes))
+        self.separateur.ajuster_plus_tard()  # le nombre de lignes d'indicateurs varie selon le crédit
 
         self.modele.definir(r)
         self._dessiner_camembert(r)
@@ -877,12 +974,14 @@ class EcranSimulation(QWidget):
         defilement.setWidgetResizable(True)
         defilement.setFrameShape(QFrame.Shape.NoFrame)
         defilement.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        defilement.setMinimumWidth(430)
+        defilement.setMinimumWidth(300)
 
         self.resultats = PanneauResultats()
         self.resultats.duree_choisie.connect(self.choisir_duree)
         separateur = QSplitter()
         separateur.setHandleWidth(1)
+        separateur.setChildrenCollapsible(False)
+        self.separateur_principal = separateur
         separateur.addWidget(defilement)
         separateur.addWidget(self.resultats)
         separateur.setStretchFactor(1, 1)
@@ -916,6 +1015,8 @@ class EcranSimulation(QWidget):
         f = QFormLayout()
         f.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         f.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        # Panneau étroit : le libellé passe au-dessus du champ plutôt que de l'écraser
+        f.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         f.setHorizontalSpacing(14)
         f.setVerticalSpacing(10)
         f.setContentsMargins(0, 0, 0, 0)
@@ -1245,6 +1346,9 @@ QLabel#message {
 QSplitter::handle { background: #e6e8ec; }
 QSplitter::handle:vertical { background: transparent; }
 
+QScrollArea#zoneCartes, QWidget#contenuCartes,
+QScrollArea#zoneCartes > QWidget#qt_scrollarea_viewport { background: transparent; border: none; }
+
 /* Champs */
 QAbstractSpinBox, QComboBox {
     background: white; border: 1px solid #d6d9df; border-radius: 6px;
@@ -1349,6 +1453,9 @@ class FenetrePrincipale(QMainWindow):
         self.setWindowTitle("Simulateur de crédit et d'épargne — outil pédagogique")
         self.ecran = EcranSimulation()
         self.ecran_epargne = EcranEpargne()
+        for ecran in (self.ecran, self.ecran_epargne):
+            separateur = ecran.separateur_principal
+            separateur.splitterMoved.connect(lambda *_, s=separateur: s.setProperty("manuel", True))
         self.pages = QStackedWidget()
         self.pages.addWidget(self.ecran)
         self.pages.addWidget(self.ecran_epargne)
@@ -1364,16 +1471,19 @@ class FenetrePrincipale(QMainWindow):
         logo = QLabel("€")
         logo.setObjectName("logo")
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        titre = QLabel("Simulateur de crédit et d'épargne")
+        titre = LibelleSouple("Simulateur de crédit et d'épargne")
         titre.setObjectName("titreApp")
-        badge = QLabel("Outil pédagogique")
+        badge = LibelleSouple("Outil pédagogique")
         badge.setObjectName("badge")
-        avertissement = QLabel(f"Outil d'enseignement · ni offre, ni conseil financier · v{__version__}")
+        avertissement = LibelleSouple(f"Outil d'enseignement · ni offre, ni conseil financier · v{__version__}")
         avertissement.setObjectName("avertissement")
         avertissement.setToolTip(
             "Les résultats ne constituent ni une offre de prêt ou de placement, ni un conseil financier ; "
             "les taux de référence sont des exemples datés."
         )
+        # Textes secondaires masqués, dans cet ordre, quand la fenêtre est étroite (voir resizeEvent)
+        self._facultatifs = [titre, badge, avertissement]
+        self._entete = e
         e.addWidget(logo)
         e.addWidget(titre)
         e.addWidget(badge)
@@ -1394,8 +1504,56 @@ class FenetrePrincipale(QMainWindow):
         layout.addWidget(entete)
         layout.addWidget(self.pages, 1)
         self.setCentralWidget(central)
-        self.setMinimumSize(1100, 720)
-        self.resize(1400, 900)
+        self.setMinimumSize(900, 580)
+        self.reglages = QSettings("SimuCredit", "Simulateur")
+        self._memoriser = False  # seule la fenêtre ouverte par afficher() enregistre sa taille
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._adapter_entete()
+        # Panneau latéral ≈ 30 % de la largeur (entre 320 et 440 px), tant qu'on ne l'a pas réglé à la main
+        laterale = min(440, max(320, int(self.width() * 0.30)))
+        for ecran in (self.ecran, self.ecran_epargne):
+            separateur = ecran.separateur_principal
+            if not separateur.property("manuel"):
+                separateur.setSizes([laterale, max(self.width() - laterale, 1)])
+
+    def _adapter_entete(self) -> None:
+        """Affiche titre, badge puis avertissement tant qu'ils tiennent dans la largeur."""
+        e = self._entete
+        marges = e.contentsMargins()
+        visibles = [e.itemAt(k).widget() for k in range(e.count()) if e.itemAt(k).widget()]
+        obligatoires = [w for w in visibles if w not in self._facultatifs]
+        place = self.width() - marges.left() - marges.right() - 40  # 40 : marge entre les blocs
+        place -= sum(w.sizeHint().width() + e.spacing() for w in obligatoires)
+        for texte in self._facultatifs:
+            besoin = texte.sizeHint().width() + e.spacing()
+            texte.setVisible(place >= besoin)
+            if place >= besoin:
+                place -= besoin
+
+    def afficher(self) -> None:
+        """Ouvre la fenêtre à une taille adaptée à l'écran (ou à la dernière taille utilisée)."""
+        self._memoriser = True
+        geometrie = self.reglages.value("geometrie")
+        if geometrie is not None and self.restoreGeometry(geometrie):
+            self.show()
+            return
+        ecran = self.screen().availableGeometry()
+        if ecran.width() < 1280 or ecran.height() < 760:
+            self.showMaximized()  # petit écran : toute la place est utile
+            return
+        largeur = min(max(int(ecran.width() * 0.85), 1100), 1800)
+        hauteur = min(max(int(ecran.height() * 0.88), 680), 1100)
+        largeur, hauteur = min(largeur, ecran.width()), min(hauteur, ecran.height())
+        self.resize(largeur, hauteur)
+        self.move(ecran.center().x() - largeur // 2, ecran.center().y() - hauteur // 2)
+        self.show()
+
+    def closeEvent(self, event) -> None:
+        if self._memoriser:
+            self.reglages.setValue("geometrie", self.saveGeometry())
+        super().closeEvent(event)
 
 
 def appliquer_theme(app: QApplication) -> None:
@@ -1412,7 +1570,7 @@ def main() -> None:
     app.setApplicationName("Simulateur de crédit")
     appliquer_theme(app)
     fenetre = FenetrePrincipale()
-    fenetre.show()
+    fenetre.afficher()
     sys.exit(app.exec())
 
 

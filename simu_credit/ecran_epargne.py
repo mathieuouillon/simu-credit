@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -39,6 +38,8 @@ from simu_credit.gui import (
     COULEUR_OK,
     CarteValeur,
     EcranSimulation,
+    GrilleCartes,
+    SeparateurResultats,
     Segmente,
     champ_duree,
     champ_montant,
@@ -149,11 +150,13 @@ class EcranEpargne(QWidget):
         defilement.setWidgetResizable(True)
         defilement.setFrameShape(QFrame.Shape.NoFrame)
         defilement.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        defilement.setMinimumWidth(430)
+        defilement.setMinimumWidth(300)
 
         self.resultats = PanneauEpargne()
         separateur = QSplitter()
         separateur.setHandleWidth(1)
+        separateur.setChildrenCollapsible(False)
+        self.separateur_principal = separateur
         separateur.addWidget(defilement)
         separateur.addWidget(self.resultats)
         separateur.setStretchFactor(1, 1)
@@ -266,17 +269,13 @@ class PanneauEpargne(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 16, 20, 16)
 
-        grille = QGridLayout()
-        grille.setSpacing(10)
-        self.cartes: dict[str, CarteValeur] = {}
-        cles = [c for c in self.CARTES if c[2]]
-        details = [c for c in self.CARTES if not c[2]]
-        for i, (cle, titre, avant) in enumerate(cles):
-            self.cartes[cle] = CarteValeur(titre, avant)
-            grille.addWidget(self.cartes[cle], 0, i * 4, 1, 4)
-        for j, (cle, titre, avant) in enumerate(details):
-            self.cartes[cle] = CarteValeur(titre, avant)
-            grille.addWidget(self.cartes[cle], 1, j * 3, 1, 3)
+        self.cartes: dict[str, CarteValeur] = {
+            cle: CarteValeur(titre, avant) for cle, titre, avant in self.CARTES
+        }
+        grille = GrilleCartes(
+            [self.cartes[c[0]] for c in self.CARTES if c[2]],
+            [self.cartes[c[0]] for c in self.CARTES if not c[2]],
+        )
         for cle, terme in self.AIDE.items():
             self.cartes[cle].setToolTip(LEXIQUE_EPARGNE[terme])
 
@@ -284,7 +283,7 @@ class PanneauEpargne(QWidget):
         h = QVBoxLayout(haut)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(10)
-        h.addLayout(grille)
+        h.addWidget(grille)
         self.indicateurs = QLabel()
         self.indicateurs.setObjectName("indicateurs")
         self.indicateurs.setWordWrap(True)
@@ -292,20 +291,15 @@ class PanneauEpargne(QWidget):
         h.addWidget(self.indicateurs)
 
         self.onglets = QTabWidget()
-        separateur = QSplitter(Qt.Orientation.Vertical)
-        separateur.setHandleWidth(14)
-        separateur.addWidget(haut)
-        separateur.addWidget(self.onglets)
-        separateur.setCollapsible(1, False)
-        separateur.setStretchFactor(1, 1)
-        layout.addWidget(separateur, 1)
+        self.separateur = SeparateurResultats(haut, self.onglets)
+        layout.addWidget(self.separateur, 1)
 
         page = QWidget()
         pg = QVBoxLayout(page)
         pg.setContentsMargins(8, 8, 8, 8)
         self.vue_graphique = QChartView()
         self.vue_graphique.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.vue_graphique.setMinimumHeight(300)
+        self.vue_graphique.setMinimumHeight(180)
         pg.addWidget(self.vue_graphique)
         self.onglets.addTab(page, "Graphique")
 
@@ -324,6 +318,7 @@ class PanneauEpargne(QWidget):
             "La ligne en gras est le placement choisi."
         )
         aide.setObjectName("note")
+        aide.setWordWrap(True)
         aide.setContentsMargins(14, 0, 14, 0)
         pc.addWidget(aide)
         self.onglets.addTab(page, "Comparer les placements")
@@ -397,6 +392,7 @@ class PanneauEpargne(QWidget):
             f"{eur(r.capital_final_reel - r.total_verse, 0)}</b> (en euros d'aujourd'hui)",
         ]
         self.indicateurs.setText("<br>".join(lignes))
+        self.separateur.ajuster_plus_tard()
 
         self._dessiner(r)
         defilement = self.explication.verticalScrollBar().value()

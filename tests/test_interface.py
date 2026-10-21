@@ -272,3 +272,42 @@ def test_epargne_tables_et_plafond(epargne):
     placements = e.resultats.table_placements
     assert placements.rowCount() == PERSONNALISE
     assert placements.item(1, 7).text() == "dépassé an 3"
+
+
+# --------------------------------------------------------------------------- tailles d'écran
+
+from PySide6.QtWidgets import QLabel  # noqa: E402
+
+from simu_credit.gui import GrilleCartes  # noqa: E402
+
+
+def test_tient_sur_un_petit_ecran():
+    # Écran de 1366 × 768 ou Windows zoomé à 150 % : la fenêtre doit pouvoir descendre à 900 × 580
+    fenetre = FenetrePrincipale()
+    for ecran in (fenetre.ecran, fenetre.ecran_epargne):
+        assert ecran.minimumSizeHint().width() <= 900
+        assert ecran.minimumSizeHint().height() <= 520
+    fenetre.resize(900, 580)
+    fenetre.show()
+    APP.processEvents()
+    assert fenetre.size().toTuple() == (900, 580)
+    fenetre.close()
+
+
+def test_cartes_adaptatives():
+    grille = GrilleCartes([QLabel() for _ in range(3)], [QLabel() for _ in range(7)], largeur_min=190)
+    for largeur, attendu in [(200, (1, 1)), (500, (2, 2)), (650, (3, 3)), (1200, (3, 4))]:
+        grille._disposer(largeur)
+        assert grille._disposition == attendu
+
+
+def test_entete_masque_les_textes_secondaires_si_etroit():
+    fenetre = FenetrePrincipale()
+    fenetre.resize(1900, 900)
+    fenetre.show()
+    APP.processEvents()
+    assert all(t.isVisible() for t in fenetre._facultatifs)
+    fenetre.resize(900, 580)
+    APP.processEvents()
+    assert not fenetre._facultatifs[-1].isVisible()  # l'avertissement disparaît en premier
+    fenetre.close()
