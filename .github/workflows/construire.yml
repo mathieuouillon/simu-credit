@@ -1,0 +1,45 @@
+# Construit l'application autonome (sans installation) pour Windows et macOS.
+# Déclenchement : onglet « Actions » de GitHub > « Construire l'application » > « Run workflow »,
+# ou automatiquement en poussant une étiquette de version (git tag v0.1.0 && git push --tags).
+# Les fichiers produits se téléchargent en bas de la page du « run » (rubrique Artifacts).
+name: Construire l'application
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  construire:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nom: Windows
+          - os: macos-latest
+            nom: macOS-AppleSilicon
+          - os: macos-15-intel
+            nom: macOS-Intel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Dépendances
+        run: uv sync --python 3.14
+      - name: Tests (calculs et interface)
+        run: uv run pytest -q
+      - name: Construction
+        run: uv run pyinstaller simu_credit.spec --noconfirm
+
+      - name: Archive macOS
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent "dist/Simulateur de credit.app" "Simulateur-de-credit-${{ matrix.nom }}.zip"
+      - name: Exécutable Windows
+        if: runner.os == 'Windows'
+        run: Move-Item dist/SimulateurCredit.exe "Simulateur-de-credit-Windows.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Simulateur-de-credit-${{ matrix.nom }}
+          path: Simulateur-de-credit-*
