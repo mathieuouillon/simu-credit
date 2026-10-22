@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
 from PySide6.QtCharts import QBarCategoryAxis, QBarSet, QChartView, QLineSeries, QStackedBarSeries, QValueAxis
 from PySide6.QtCore import Qt
@@ -49,36 +49,9 @@ from simu_credit.gui import (
     styliser,
 )
 from simu_credit.pedagogie import LEXIQUE_EPARGNE, expliquer_epargne
+from simu_credit.scenarios import PERSONNALISE, PLACEMENTS, Placement, avertissements_epargne
 
 
-@dataclass(frozen=True)
-class Placement:
-    nom: str
-    taux: float  # taux annuel brut, en %
-    prelevements: float  # impôt + prélèvements sociaux sur les intérêts, en %
-    plafond: float | None  # plafond de versements, en €
-    source: str
-    note: str = ""
-
-
-# Taux relevés en octobre 2026 ; à mettre à jour périodiquement.
-PLACEMENTS = [
-    Placement("Livret A", 1.7, 0.0, 22_950, "taux en vigueur depuis le 1er août 2026",
-              "Exonéré d'impôt et de prélèvements sociaux."),
-    Placement("LDDS", 1.7, 0.0, 12_000, "taux en vigueur depuis le 1er août 2026 (aligné sur le Livret A)",
-              "Exonéré d'impôt et de prélèvements sociaux."),
-    Placement("LEP", 2.5, 0.0, 10_000, "taux en vigueur depuis le 1er août 2026",
-              "Réservé aux foyers aux revenus modestes. Exonéré d'impôt et de prélèvements sociaux."),
-    Placement("PEL (ouvert en 2026)", 2.0, 30.0, 61_200, "taux des PEL ouverts depuis le 1er janvier 2026",
-              "Intérêts soumis au prélèvement forfaitaire unique de 30 %. Versements limités à 10 ans ; "
-              "un PEL dure 15 ans au plus."),
-    Placement("Assurance vie, fonds €", 2.63, 17.2, None,
-              "rendement moyen 2025 publié par l'ACPR en juin 2026, déjà net des frais de gestion",
-              "Prélèvements sociaux de 17,2 % retenus chaque année ; l'impôt sur le revenu, dû seulement "
-              "lors d'un retrait, n'est pas simulé."),
-    Placement("Personnalisé", 3.0, 30.0, None, "taux et prélèvements saisis librement"),
-]
-PERSONNALISE = len(PLACEMENTS) - 1
 MODE_VERSEMENTS, MODE_OBJECTIF = 0, 1
 
 
@@ -260,21 +233,7 @@ class EcranEpargne(QWidget):
         r, objectif = self.simuler()
         p = PLACEMENTS[self.placement.currentIndex()]
 
-        avertissements = []
-        if p.plafond:
-            annee = annee_depassement(r, p.plafond)
-            if annee:
-                avertissements.append(
-                    f"Les versements dépassent le plafond du {p.nom} ({eur(p.plafond, 0)}) "
-                    f"dès l'année {annee} : au-delà, il faudrait un autre placement."
-                )
-        if p.nom.startswith("PEL") and self.duree.value() > 15:
-            avertissements.append("Un PEL dure au plus 15 ans.")
-        if r.rendement_reel < 0:
-            avertissements.append(
-                f"Le rendement net ({pct(r.rendement_net)}) est inférieur à l'inflation "
-                f"({pct(r.inflation, 1)}) : l'épargne perd du pouvoir d'achat."
-            )
+        avertissements = avertissements_epargne(r, p)
         self.message.setText("<br>".join(f"⚠ {a}" for a in avertissements))
         self.message.setVisible(bool(avertissements))
 

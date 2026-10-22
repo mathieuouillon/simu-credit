@@ -1,0 +1,56 @@
+# Publie la version web sur GitHub Pages à chaque modification de la branche main.
+# Avant la mise en ligne : les données du site doivent être à jour avec le code Python, et la version
+# JavaScript doit reproduire exactement les cas de référence calculés par Python.
+name: Site web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Dépendances
+        run: uv sync --python 3.14
+      - name: Données du site à jour avec le code Python
+        run: |
+          uv run python outils/generer_web.py
+          git diff --exit-code web/js/donnees.js web/logo.svg || {
+            echo "::error::web/js/donnees.js n'est pas à jour : lancez « uv run python outils/generer_web.py » et committez."
+            exit 1
+          }
+      - name: JavaScript identique à Python (cas de référence)
+        run: node --test web/tests/
+      - name: Préparation du site
+        run: |
+          mkdir _site
+          cp -r web/index.html web/style.css web/logo.svg web/js _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  publier:
+    needs: verifier
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - id: deploiement
+        uses: actions/deploy-pages@v4

@@ -5,6 +5,8 @@
 > **Outil pédagogique**, destiné uniquement à l'enseignement. Les résultats ne constituent ni une offre
 > de prêt, ni un conseil financier. Les taux de référence sont des exemples relevés à une date donnée.
 
+**Version web, sans rien installer : https://mathieuouillon.github.io/simu-credit/**
+
 Application de bureau (PySide6 / Qt) pour simuler un crédit **à la consommation**, **auto** ou **immobilier**,
 ainsi qu'une **épargne** à versements réguliers (onglet « Épargne » de l'en-tête).
 Un menu « Type de crédit » adapte le formulaire (champs affichés et valeurs par défaut) ; les résultats se recalculent à chaque modification.
@@ -126,6 +128,34 @@ uv run python outils/generer_icones.py
 
 Ces avertissements disparaissent avec une signature officielle (compte développeur Apple, 99 $/an ;
 certificat de signature de code sous Windows).
+
+## Version web
+
+Le dossier [web/](web/) contient le même simulateur en HTML/JavaScript, publié sur GitHub Pages par
+[site.yml](.github/workflows/site.yml) à chaque modification de `main`. Les calculs sont faits dans le
+navigateur ; aucune donnée n'est envoyée.
+
+Le code Python reste la référence :
+
+- [scenarios.py](simu_credit/scenarios.py) rassemble la logique et les données communes (profils, taux,
+  placements) ; l'application de bureau l'utilise, et [generer_web.py](outils/generer_web.py) en exporte
+  les données pour le site (`web/js/donnees.js`) ;
+- le même script calcule en Python des centaines de cas de référence, que la version JavaScript doit
+  reproduire exactement : chiffres à 10⁻⁹ près, textes affichés au caractère près.
+
+```bash
+uv run python outils/generer_web.py
+```
+
+```bash
+node --test web/tests/
+```
+
+Pour essayer le site en local :
+
+```bash
+python3 -m http.server 8765 --directory web
+```
 
 ## Tests
 

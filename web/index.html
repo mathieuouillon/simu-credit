@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulateur de crédit et d'épargne</title>
+  <meta name="description" content="Outil pédagogique : simulez un crédit (consommation, auto, immobilier) ou une épargne, et voyez comment chaque chiffre est calculé.">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="entete">
+    <div class="marque">
+      <img src="logo.svg" alt="" width="32" height="32">
+      <span class="titre-app">Simulateur de crédit et d'épargne</span>
+      <span class="badge">Outil pédagogique</span>
+    </div>
+    <div class="navigation">
+      <div class="segmente" role="tablist" aria-label="Simulateur">
+        <button type="button" data-activite="credit" class="actif">Crédit</button>
+        <button type="button" data-activite="epargne">Épargne</button>
+      </div>
+      <div class="segmente" id="types-credit" aria-label="Type de crédit">
+        <button type="button" data-type="conso" class="actif">Consommation</button>
+        <button type="button" data-type="auto">Auto</button>
+        <button type="button" data-type="immo">Immobilier</button>
+      </div>
+    </div>
+    <span class="avertissement-entete">Outil d'enseignement · ni offre, ni conseil financier · <span id="version"></span></span>
+  </header>
+
+  <!-- ===================================================================== Crédit -->
+  <main id="page-credit" class="page">
+    <aside class="lateral">
+      <form id="form-credit" autocomplete="off" onsubmit="return false">
+        <h4>Projet</h4>
+        <div class="champ"><label>Je pars de</label>
+          <div class="segmente petit" id="mode-credit">
+            <button type="button" data-mode="montant" class="actif">Le montant</button>
+            <button type="button" data-mode="mensualite">La mensualité</button>
+          </div>
+        </div>
+        <div class="champ" data-ligne="montant"><label for="montant" id="libelle-montant">Montant</label>
+          <div class="saisie"><input id="montant" type="number" min="0" step="500"><span>€</span></div></div>
+        <div class="champ" data-ligne="mensualite"><label for="mensualite-souhaitee">Mensualité souhaitée</label>
+          <div class="saisie"><input id="mensualite-souhaitee" type="number" min="0" step="10" title="Assurance comprise"><span>€</span></div></div>
+        <div class="champ" data-champ="type_bien"><label for="type-bien">Type de bien</label>
+          <select id="type-bien"></select></div>
+        <div class="champ" data-champ="notaire"><label for="notaire">Frais de notaire</label>
+          <div class="saisie"><input id="notaire" type="number" min="0" max="15" step="0.1" title="En % du prix ; ajusté selon le type de bien"><span>%</span></div></div>
+        <div class="champ" data-champ="travaux"><label for="travaux">Travaux</label>
+          <div class="saisie"><input id="travaux" type="number" min="0" step="1000" value="0"><span>€</span></div></div>
+        <div class="champ" data-champ="apport"><label for="apport">Apport personnel</label>
+          <div class="saisie"><input id="apport" type="number" min="0" step="500"><span>€</span></div></div>
+        <div class="champ" data-champ="reprise"><label for="reprise">Reprise ancien véhicule</label>
+          <div class="saisie"><input id="reprise" type="number" min="0" step="500" value="0" title="Valeur de reprise déduite du prix"><span>€</span></div></div>
+
+        <h4>Durée et taux</h4>
+        <div class="champ" data-champ="duree_mois"><label for="duree-mois">Durée</label>
+          <div class="saisie"><input id="duree-mois" type="number" min="3" max="120" step="1"><span>mois</span></div></div>
+        <div class="champ" data-champ="duree_ans"><label for="duree-ans">Durée</label>
+          <div class="saisie"><input id="duree-ans" type="number" min="5" max="30" step="1"><span>ans</span></div></div>
+        <div class="champ"><label for="taux">Taux nominal annuel</label>
+          <div class="avec-ref">
+            <div class="saisie"><input id="taux" type="number" min="0" max="25" step="0.05"><span>%</span></div>
+            <label class="ref"><input type="checkbox" id="taux-ref" checked> Réf.</label>
+          </div></div>
+
+        <h4>Assurance et frais</h4>
+        <div class="champ"><label for="assurance">Assurance emprunteur</label>
+          <div class="saisie"><input id="assurance" type="number" min="0" max="5" step="0.01" title="Taux annuel de l'assurance"><span>%</span></div></div>
+        <div class="champ"><label for="base-assurance">Assurance calculée sur</label>
+          <select id="base-assurance" title="Capital initial : même montant chaque mois. Capital restant dû : montant qui baisse au fil du remboursement.">
+            <option value="initial">Capital initial</option>
+            <option value="crd">Capital restant dû</option>
+          </select></div>
+        <div class="champ"><label for="frais-dossier">Frais de dossier</label>
+          <div class="saisie"><input id="frais-dossier" type="number" min="0" step="50"><span>€</span></div></div>
+        <div class="champ" data-champ="garantie"><label for="garantie">Garantie</label>
+          <div class="saisie"><input id="garantie" type="number" min="0" max="5" step="0.1" value="1" title="Caution ou hypothèque, en % du capital emprunté"><span>%</span></div></div>
+        <p class="note" id="note-taux"></p>
+        <div class="message" id="message-credit" hidden></div>
+
+        <h4>Budget du foyer (par mois)</h4>
+        <div class="champ"><label for="revenus">Revenus nets du foyer</label>
+          <div class="saisie"><input id="revenus" type="number" min="0" step="100" value="4500"><span>€</span></div></div>
+        <div class="champ"><label for="charges">Autres crédits en cours</label>
+          <div class="saisie"><input id="charges" type="number" min="0" step="50" value="0"><span>€</span></div></div>
+        <h4>Dépenses courantes</h4>
+        <div id="postes"></div>
+        <p class="note" id="note-budget" hidden>Achat de résidence principale : retirez le loyer actuel du poste Logement (gardez les charges, la taxe foncière…).</p>
+      </form>
+    </aside>
+
+    <section class="resultats">
+      <div class="cartes cles" id="cartes-credit-cles"></div>
+      <div class="cartes details" id="cartes-credit-details"></div>
+      <div class="indicateurs" id="indicateurs-credit"></div>
+      <div class="onglets" role="tablist" data-groupe="credit">
+        <button type="button" data-onglet="graphiques" class="actif">Graphiques</button>
+        <button type="button" data-onglet="explication">Comment c'est calculé</button>
+        <button type="button" data-onglet="budget">Budget</button>
+        <button type="button" data-onglet="durees">Comparer les durées</button>
+        <button type="button" data-onglet="amortissement">Tableau d'amortissement</button>
+      </div>
+      <div class="panneaux" data-groupe="credit">
+        <div class="panneau actif" data-panneau="graphiques"><div class="graphiques" id="graphiques-credit"></div></div>
+        <div class="panneau explication" data-panneau="explication" id="explication-credit"></div>
+        <div class="panneau" data-panneau="budget">
+          <div class="cartes details" id="cartes-budget"></div>
+          <p class="note" id="resume-budget"></p>
+          <div id="graphique-budget"></div>
+        </div>
+        <div class="panneau" data-panneau="durees">
+          <div class="table-defilante"><table class="tableau" id="table-durees"></table></div>
+          <p class="note">Cliquez sur une ligne pour retenir cette durée. La ligne en gras est la simulation en cours.</p>
+        </div>
+        <div class="panneau" data-panneau="amortissement">
+          <div class="table-defilante haute"><table class="tableau" id="table-amortissement"></table></div>
+          <div class="pied">
+            <p class="note">Ligne surlignée en jaune : point de bascule, première échéance où l'on rembourse plus de capital que d'intérêts.</p>
+            <button type="button" class="bouton" id="export-csv">Exporter en CSV…</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================================================================== Épargne -->
+  <main id="page-epargne" class="page" hidden>
+    <aside class="lateral">
+      <form id="form-epargne" autocomplete="off" onsubmit="return false">
+        <h4>Placement</h4>
+        <div class="champ"><label for="placement">Placement</label><select id="placement"></select></div>
+        <div class="champ"><label>Je pars de</label>
+          <div class="segmente petit" id="mode-epargne">
+            <button type="button" data-mode="versements" class="actif">Mes versements</button>
+            <button type="button" data-mode="objectif">Mon objectif</button>
+          </div>
+        </div>
+        <h4>Versements</h4>
+        <div class="champ"><label for="capital-initial">Capital de départ</label>
+          <div class="saisie"><input id="capital-initial" type="number" min="0" step="100" value="1000"><span>€</span></div></div>
+        <div class="champ" data-ligne="versements"><label for="versement">Versement mensuel</label>
+          <div class="saisie"><input id="versement" type="number" min="0" step="10" value="100"><span>€</span></div></div>
+        <div class="champ" data-ligne="objectif"><label for="objectif">Objectif à atteindre</label>
+          <div class="saisie"><input id="objectif" type="number" min="0" step="1000" value="20000"><span>€</span></div></div>
+        <div class="champ"><label for="duree-epargne">Durée</label>
+          <div class="saisie"><input id="duree-epargne" type="number" min="1" max="50" step="1" value="10"><span>ans</span></div></div>
+        <h4>Rendement</h4>
+        <div class="champ"><label for="taux-epargne">Taux annuel brut</label>
+          <div class="avec-ref">
+            <div class="saisie"><input id="taux-epargne" type="number" min="0" max="20" step="0.05"><span>%</span></div>
+            <label class="ref"><input type="checkbox" id="taux-epargne-ref" checked> Réf.</label>
+          </div></div>
+        <div class="champ"><label for="prelevements">Impôt et prélèvements</label>
+          <div class="avec-ref">
+            <div class="saisie"><input id="prelevements" type="number" min="0" max="100" step="0.1" title="Impôt et prélèvements sociaux retenus sur les intérêts"><span>%</span></div>
+            <label class="ref"><input type="checkbox" id="prelevements-ref" checked> Réf.</label>
+          </div></div>
+        <div class="champ"><label for="inflation">Inflation annuelle</label>
+          <div class="saisie"><input id="inflation" type="number" min="0" max="20" step="0.1" title="2 % = objectif de long terme de la BCE ; l'inflation était de 3,1 % sur un an en septembre 2026 (Insee)."><span>%</span></div></div>
+        <p class="note" id="note-placement"></p>
+        <div class="message" id="message-epargne" hidden></div>
+      </form>
+    </aside>
+
+    <section class="resultats">
+      <div class="cartes cles" id="cartes-epargne-cles"></div>
+      <div class="cartes details" id="cartes-epargne-details"></div>
+      <div class="indicateurs" id="indicateurs-epargne"></div>
+      <div class="onglets" role="tablist" data-groupe="epargne">
+        <button type="button" data-onglet="graphique" class="actif">Graphique</button>
+        <button type="button" data-onglet="explication">Comment c'est calculé</button>
+        <button type="button" data-onglet="placements">Comparer les placements</button>
+        <button type="button" data-onglet="annuel">Tableau annuel</button>
+      </div>
+      <div class="panneaux" data-groupe="epargne">
+        <div class="panneau actif" data-panneau="graphique" id="graphique-epargne"></div>
+        <div class="panneau explication" data-panneau="explication" id="explication-epargne"></div>
+        <div class="panneau" data-panneau="placements">
+          <div class="table-defilante"><table class="tableau" id="table-placements"></table></div>
+          <p class="note">Mêmes versements et même durée pour chaque placement, aux valeurs de référence. La ligne en gras est votre simulation ; « vos valeurs » signale un taux ou des prélèvements modifiés.</p>
+        </div>
+        <div class="panneau" data-panneau="annuel">
+          <div class="table-defilante haute"><table class="tableau" id="table-annuelle"></table></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="resume-mobile" id="resume-mobile" title="Voir les résultats"></div>
+
+  <footer class="pied-de-page">
+    Outil pédagogique : les résultats ne constituent ni une offre de prêt ou de placement, ni un conseil financier ;
+    les taux de référence sont des exemples datés. Tous les calculs sont faits dans votre navigateur, aucune donnée n'est envoyée.
+    · <a href="https://github.com/mathieuouillon/simu-credit">Code source et application de bureau</a>
+  </footer>
+</body>
+</html>

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from PySide6.QtCharts import (
@@ -52,8 +51,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from simu_credit.calcul import Budget, ResultatCredit, capital_empruntable, mois_bascule, simuler, taux_reference
-from simu_credit.formats import duree_texte, eur, nombre, pct
+from simu_credit import scenarios
+from simu_credit.calcul import Budget, ResultatCredit, mois_bascule
+from simu_credit.scenarios import (
+    COULEUR_ALERTE,
+    COULEUR_OK,
+    ENDETTEMENT_MAX,
+    POSTES_BUDGET,
+    PROFILS,
+    TAUX_NOTAIRE,
+    Parametres,
+    Scenario,
+)
+from simu_credit.formats import duree_texte, eur, pct
 from simu_credit.pedagogie import LEXIQUE, expliquer
 
 ACCENT = "#2563eb"
@@ -62,8 +72,6 @@ COULEUR_INTERETS = QColor("#f59e0b")
 COULEUR_ASSURANCE = QColor("#10b981")
 COULEUR_FRAIS = QColor("#8b5cf6")
 COULEUR_DEPENSES = QColor("#a3acb9")
-COULEUR_OK = "#059669"
-COULEUR_ALERTE = "#dc2626"
 TEXTE = QColor("#111827")
 TEXTE_SECONDAIRE = QColor("#6b7280")
 GRILLE = QColor("#eef0f3")
@@ -161,28 +169,6 @@ def styliser(chart: QChart) -> None:
 
 
 # --------------------------------------------------------------------------- résultats
-
-
-@dataclass
-class Indicateur:
-    """Ligne d'information spécifique à un type de crédit (ex. taux d'endettement)."""
-
-    libelle: str
-    valeur: str
-    couleur: str | None = None
-
-
-@dataclass
-class Scenario:
-    """Résultat complet d'une simulation pour une durée donnée."""
-
-    resultat: ResultatCredit
-    indicateurs: list[Indicateur]
-    avertissements: list[str]
-    endettement: float | None = None  # en %, si les revenus sont renseignés
-    budget: Budget | None = None
-    etapes_montant: list[tuple[str, str]] = field(default_factory=list)  # pour l'explication pas à pas
-    mensualite_cible: float | None = None  # mode « mensualité »
 
 
 class CarteValeur(QFrame):
@@ -784,71 +770,6 @@ class PanneauResultats(QWidget):
 # --------------------------------------------------------------------------- écran
 
 
-@dataclass(frozen=True)
-class Profil:
-    """Valeurs par défaut et champs spécifiques d'un type de crédit."""
-
-    libelle: str
-    libelle_montant: str
-    montant: float
-    montant_max: float
-    pas_montant: float
-    apport: float
-    mensualite: float  # mensualité souhaitée par défaut (mode inverse)
-    duree: int  # en mois, sauf pour l'immobilier (en années)
-    assurance: float
-    frais_dossier: float
-    grille_taux: dict[int, float]  # {durée en mois: taux nominal de référence}
-    source_taux: str
-    durees_comparaison: tuple[int, ...]  # en mois
-    champs: frozenset[str]
-
-
-# Taux de référence relevés en octobre 2026 ; à mettre à jour périodiquement.
-TAUX_CETELEM = {48: 5.36}  # 15 000 € / 48 mois, TAEG fixe 5,49 % sans frais ni assurance
-TAUX_MEILLEURTAUX = {120: 3.71, 180: 3.80, 240: 3.87, 300: 4.01}  # taux moyens avant négociation
-
-PROFILS = {
-    "conso": Profil(
-        libelle="Consommation", libelle_montant="Montant à emprunter",
-        montant=10_000, montant_max=200_000, pas_montant=500, apport=0, mensualite=250,
-        duree=48, assurance=0.0, frais_dossier=0,
-        grille_taux=TAUX_CETELEM,
-        source_taux="Cetelem, prêt personnel, offre « à partir de » (octobre 2026)",
-        durees_comparaison=(12, 24, 36, 48, 60, 72, 84),
-        champs=frozenset({"duree_mois"}),
-    ),
-    "auto": Profil(
-        libelle="Auto", libelle_montant="Prix du véhicule",
-        montant=28_000, montant_max=500_000, pas_montant=500, apport=5_000, mensualite=450,
-        duree=60, assurance=0.3, frais_dossier=0,
-        grille_taux=TAUX_CETELEM,
-        source_taux="Cetelem, crédit auto, offre « à partir de » (octobre 2026)",
-        durees_comparaison=(24, 36, 48, 60, 72, 84),
-        champs=frozenset({"apport", "reprise", "duree_mois"}),
-    ),
-    "immo": Profil(
-        libelle="Immobilier", libelle_montant="Prix du bien",
-        montant=250_000, montant_max=10_000_000, pas_montant=5_000, apport=25_000, mensualite=1_500,
-        duree=20, assurance=0.34, frais_dossier=1_000,
-        grille_taux=TAUX_MEILLEURTAUX,
-        source_taux="Meilleurtaux, taux moyens avant négociation du 19/10/2026",
-        durees_comparaison=(120, 180, 240, 300),
-        champs=frozenset({"type_bien", "notaire", "travaux", "apport", "duree_ans", "garantie"}),
-    ),
-}
-
-TAUX_NOTAIRE = {"Ancien": 7.5, "Neuf (VEFA)": 2.5}
-# Dépenses courantes du foyer : (libellé, montant mensuel par défaut)
-POSTES_BUDGET = [
-    ("Logement (loyer, charges)", 900),
-    ("Alimentation", 600),
-    ("Transport", 250),
-    ("Énergie et eau", 150),
-    ("Assurances et abonnements", 150),
-    ("Loisirs et divers", 300),
-]
-ENDETTEMENT_MAX = 35.0
 MODE_MONTANT, MODE_MENSUALITE = 0, 1
 
 
@@ -1088,9 +1009,7 @@ class EcranSimulation(QWidget):
 
     def taux_pour(self, duree_mois: int) -> float:
         """Taux de la grille de référence (arrondi comme à l'affichage) ou taux saisi."""
-        if self.taux_reference.isChecked():
-            return round(taux_reference(PROFILS[self.cle].grille_taux, duree_mois), 2)
-        return self.taux.value()
+        return scenarios.taux_pour(self.cle, duree_mois, self.taux.value(), self.taux_reference.isChecked())
 
     def recalculer(self) -> None:
         if self._chargement:
@@ -1113,190 +1032,35 @@ class EcranSimulation(QWidget):
             self.message.setText(str(err))
             self.message.show()
             return
-        comparaison = []
-        for d in sorted(set(profil.durees_comparaison) | {duree}):
-            try:
-                comparaison.append(self.calculer(d, self.taux_pour(d)))
-            except ValueError:
-                continue
+        comparaison = scenarios.comparer_durees(
+            self.cle, self.parametres(), duree, self.taux.value(), self.taux_reference.isChecked()
+        )
         self.message.setText("<br>".join(f"⚠ {a}" for a in scenario.avertissements))
         self.message.setVisible(bool(scenario.avertissements))
         self.resultats.afficher(scenario, comparaison)
 
-    # ----------------------------------------------------------------- calculs par type
+    # ----------------------------------------------------------------- calculs (module scenarios)
 
-    def calculer(self, duree_mois: int, taux: float) -> Scenario:
-        calcul = {"conso": self.calculer_conso, "auto": self.calculer_auto, "immo": self.calculer_immo}
-        scenario = calcul[self.cle](duree_mois, taux)
-        if self.par_mensualite:
-            scenario.mensualite_cible = self.mensualite_souhaitee.value()
-        self._ajouter_budget(scenario)
-        return scenario
-
-    def _ajouter_budget(self, s: Scenario) -> None:
-        """Place la mensualité du crédit dans le budget du foyer (tous types de crédit)."""
-        b = Budget(
+    def parametres(self) -> Parametres:
+        return Parametres(
+            par_mensualite=self.par_mensualite,
+            montant=self.montant.value(),
+            mensualite_souhaitee=self.mensualite_souhaitee.value(),
+            apport=self.apport.value(),
+            reprise=self.reprise.value(),
+            travaux=self.travaux.value(),
+            notaire=self.notaire.value(),
+            assurance=self.assurance.value(),
+            assurance_sur_crd=self.base_assurance.currentIndex() == 1,
+            frais_dossier=self.frais_dossier.value(),
+            garantie=self.garantie.value(),
             revenus=self.revenus.value(),
-            mensualite_credit=s.resultat.mensualite_totale,
-            autres_credits=self.charges.value(),
+            charges=self.charges.value(),
             depenses={libelle: champ.value() for libelle, champ in self.postes.items()},
         )
-        s.budget = b
-        if b.revenus <= 0:
-            return
-        s.endettement = b.endettement
-        ok = b.endettement <= ENDETTEMENT_MAX
-        s.indicateurs += [
-            Indicateur("Part de la mensualité dans le revenu", pct(b.part_credit_revenu)),
-            Indicateur(
-                f"Taux d'endettement, tous crédits (max {ENDETTEMENT_MAX:.0f} %)",
-                pct(b.endettement),
-                COULEUR_OK if ok else COULEUR_ALERTE,
-            ),
-            Indicateur(
-                "Solde du mois après crédits et dépenses",
-                eur(b.solde, 0),
-                COULEUR_OK if b.solde >= 0 else COULEUR_ALERTE,
-            ),
-        ]
-        if not ok:
-            s.avertissements.append(
-                "Taux d'endettement supérieur à 35 % (recommandation HCSF) : "
-                "augmentez l'apport ou la durée, ou réduisez le montant."
-                if self.cle == "immo"
-                else "Taux d'endettement supérieur à 35 % : seuil au-delà duquel les prêteurs refusent souvent."
-            )
-        if b.solde < 0:
-            s.avertissements.append(
-                f"Budget déficitaire : il manque {eur(-b.solde, 0)} par mois une fois crédits et dépenses payés."
-            )
 
-    def _capital_pour_mensualite(self, duree_mois: int, taux: float) -> float:
-        return capital_empruntable(self.mensualite_souhaitee.value(), taux, duree_mois, self.assurance.value())
-
-    def _simuler(self, capital: float, duree_mois: int, taux: float, frais: float) -> ResultatCredit:
-        return simuler(
-            capital, taux, duree_mois, self.assurance.value(), frais,
-            assurance_sur_crd=self.base_assurance.currentIndex() == 1,
-        )
-
-    def calculer_conso(self, duree_mois: int, taux: float) -> Scenario:
-        if self.par_mensualite:
-            capital = self._capital_pour_mensualite(duree_mois, taux)
-        else:
-            capital = self.montant.value()
-        if capital <= 0:
-            raise ValueError("Le montant emprunté doit être positif.")
-        r = self._simuler(capital, duree_mois, taux, self.frais_dossier.value())
-        indicateurs = []
-        if self.par_mensualite:
-            indicateurs.append(Indicateur("Montant empruntable pour cette mensualité", eur(capital, 0), COULEUR_OK))
-        avertissements = []
-        if not 200 <= capital <= 75_000:
-            avertissements.append("Hors du cadre légal du crédit à la consommation (200 € à 75 000 €).")
-        etapes = [] if self.par_mensualite else [("Montant emprunté", eur(capital))]
-        if self.frais_dossier.value():
-            etapes.append(("Frais de dossier, payés au départ", eur(self.frais_dossier.value())))
-        return Scenario(r, indicateurs, avertissements, etapes_montant=etapes)
-
-    def calculer_auto(self, duree_mois: int, taux: float) -> Scenario:
-        apport = self.apport.value() + self.reprise.value()
-        if self.par_mensualite:
-            capital = self._capital_pour_mensualite(duree_mois, taux)
-            prix = capital + apport
-        else:
-            prix = self.montant.value()
-            capital = prix - apport
-        if capital <= 0:
-            raise ValueError("L'apport et la reprise couvrent le prix : aucun emprunt nécessaire.")
-        r = self._simuler(capital, duree_mois, taux, self.frais_dossier.value())
-        indicateurs = []
-        if self.par_mensualite:
-            indicateurs.append(Indicateur("Prix maximum du véhicule", eur(prix, 0), COULEUR_OK))
-        indicateurs += [
-            Indicateur("Part financée", pct(capital / prix * 100)),
-            Indicateur("Coût total du véhicule (prix + coût du crédit)", eur(prix + r.cout_total)),
-        ]
-        if self.par_mensualite:
-            etapes = [
-                ("Montant empruntable (calculé ci-dessus)", eur(capital)),
-                ("+ apport", eur(self.apport.value())),
-                ("+ reprise de l'ancien véhicule", eur(self.reprise.value())),
-                ("<b>= Prix maximum du véhicule</b>", f"<b>{eur(prix)}</b>"),
-            ]
-        else:
-            etapes = [
-                ("Prix du véhicule", eur(prix)),
-                ("− apport", eur(self.apport.value())),
-                ("− reprise de l'ancien véhicule", eur(self.reprise.value())),
-                ("<b>= Montant emprunté C</b>", f"<b>{eur(capital)}</b>"),
-            ]
-        return Scenario(r, indicateurs, [], etapes_montant=etapes)
-
-    def calculer_immo(self, duree_mois: int, taux: float) -> Scenario:
-        part_notaire = self.notaire.value() / 100
-        travaux = self.travaux.value()
-        if self.par_mensualite:
-            capital = self._capital_pour_mensualite(duree_mois, taux)
-            projet = capital + self.apport.value()
-            prix = (projet - travaux) / (1 + part_notaire)
-            if prix <= 0:
-                raise ValueError("Mensualité et apport insuffisants pour couvrir les travaux.")
-        else:
-            prix = self.montant.value()
-            projet = prix * (1 + part_notaire) + travaux
-            capital = projet - self.apport.value()
-        if capital <= 0:
-            raise ValueError("L'apport couvre le coût du projet : aucun emprunt nécessaire.")
-        frais = self.frais_dossier.value() + capital * self.garantie.value() / 100
-        r = self._simuler(capital, duree_mois, taux, frais)
-
-        indicateurs = []
-        if self.par_mensualite:
-            indicateurs.append(Indicateur("Prix maximum du bien", eur(prix, 0), COULEUR_OK))
-        indicateurs += [
-            Indicateur("Coût total du projet", eur(projet, 0)),
-            Indicateur("dont frais de notaire", eur(prix * part_notaire, 0)),
-            Indicateur("Apport / coût du projet", pct(self.apport.value() / projet * 100)),
-        ]
-        avertissements = []
-        revenus = self.revenus.value()
-        charges = self.charges.value()
-        if revenus > 0:
-            mensualite_max = revenus * ENDETTEMENT_MAX / 100 - charges
-            capacite = capital_empruntable(mensualite_max, taux, duree_mois, self.assurance.value())
-            indicateurs.append(
-                Indicateur(
-                    f"Capacité d'emprunt max sur {duree_texte(duree_mois)}",
-                    f"{eur(capacite, 0)} (mensualité ≤ {eur(max(mensualite_max, 0), 0)})",
-                )
-            )
-        if duree_mois > 300:
-            avertissements.append("Durée supérieure à 25 ans : au-delà de la norme HCSF (27 ans dans le neuf).")
-        notaire = f"frais de notaire ({pct(self.notaire.value(), 1)} du prix)"
-        if self.par_mensualite:
-            etapes = [
-                ("Montant empruntable (calculé ci-dessus)", eur(capital)),
-                ("+ apport", eur(self.apport.value())),
-                ("= Budget total du projet", eur(projet)),
-                ("− travaux", eur(travaux)),
-                (f"÷ (1 + {notaire})", nombre(1 + part_notaire, 3)),
-                ("<b>= Prix maximum du bien</b>", f"<b>{eur(prix)}</b>"),
-            ]
-        else:
-            etapes = [
-                ("Prix du bien", eur(prix)),
-                (f"+ {notaire}", eur(prix * part_notaire)),
-                ("+ travaux", eur(travaux)),
-                ("= Coût total du projet", eur(projet)),
-                ("− apport", eur(self.apport.value())),
-                ("<b>= Montant emprunté C</b>", f"<b>{eur(capital)}</b>"),
-            ]
-        etapes.append((
-            f"Frais payés au départ : dossier + garantie ({pct(self.garantie.value(), 1)} de C)",
-            eur(frais),
-        ))
-        return Scenario(r, indicateurs, avertissements, etapes_montant=etapes)
+    def calculer(self, duree_mois: int, taux: float) -> Scenario:
+        return scenarios.calculer(self.cle, self.parametres(), duree_mois, taux)
 
 
 # --------------------------------------------------------------------------- fenêtre
