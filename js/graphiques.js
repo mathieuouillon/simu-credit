@@ -2,7 +2,7 @@
 
 import { nombre } from "./formats.js";
 
-export const COULEURS = {
+const PAR_DEFAUT = {
   capital: "#3b82f6",
   interets: "#f59e0b",
   assurance: "#10b981",
@@ -10,7 +10,18 @@ export const COULEURS = {
   depenses: "#a3acb9",
   alerte: "#dc2626",
   ligne: "#374151",
+  grille: "#eef0f3",
+  axe: "#d1d5db",
+  fond: "#ffffff",
 };
+
+/** Couleurs des graphiques, lues dans la feuille de style (variables --graphe-capital, etc.). */
+export const COULEURS = new Proxy(PAR_DEFAUT, {
+  get(defauts, nom) {
+    const valeur = getComputedStyle(document.documentElement).getPropertyValue(`--graphe-${nom}`).trim();
+    return valeur || defauts[nom];
+  },
+});
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const legende = (elements) =>
@@ -47,7 +58,7 @@ export function anneau(titre, parts) {
     ? visibles.map((_, k) => {
         const angle = (visibles.slice(0, k).reduce((s, p) => s + p.valeur, 0) / total) * 2 * Math.PI - Math.PI / 2;
         return `<line x1="${100 + 52 * Math.cos(angle)}" y1="${100 + 52 * Math.sin(angle)}" x2="${100 + 88 * Math.cos(angle)}"
-          y2="${100 + 88 * Math.sin(angle)}" stroke="white" stroke-width="2"/>`;
+          y2="${100 + 88 * Math.sin(angle)}" stroke="${COULEURS.fond}" stroke-width="2"/>`;
       }).join("")
     : "";
   return `<div class="graphique"><h5>${esc(titre)}</h5><div class="anneau">
@@ -71,7 +82,7 @@ export function barres(titre, { categories, series, ligne = null, titreX = "" })
 
   let svg = "";
   for (const t of ticks) {
-    svg += `<line x1="${g}" x2="${L - d}" y1="${y(t)}" y2="${y(t)}" stroke="#eef0f3"/>`;
+    svg += `<line x1="${g}" x2="${L - d}" y1="${y(t)}" y2="${y(t)}" stroke="${COULEURS.grille}"/>`;
     svg += `<text x="${g - 8}" y="${y(t) + 4}" text-anchor="end">${nombre(t, 0)}</text>`;
   }
   categories.forEach((cat, k) => {
@@ -91,7 +102,7 @@ export function barres(titre, { categories, series, ligne = null, titreX = "" })
     const points = ligne.valeurs.map((v, k) => `${x(k)},${y(v)}`).join(" ");
     svg += `<polyline points="${points}" fill="none" stroke="${ligne.couleur}" stroke-width="2" stroke-dasharray="6 4"/>`;
   }
-  svg += `<line x1="${g}" x2="${L - d}" y1="${y(0)}" y2="${y(0)}" stroke="#d1d5db"/>`;
+  svg += `<line x1="${g}" x2="${L - d}" y1="${y(0)}" y2="${y(0)}" stroke="${COULEURS.axe}"/>`;
   if (titreX) svg += `<text x="${(g + L - d) / 2}" y="${H - 6}" text-anchor="middle" font-weight="600">${esc(titreX)}</text>`;
   const elements = series.map((s) => [s.nom, s.couleur]).concat(ligne ? [[ligne.nom, ligne.couleur]] : []);
   return `<div class="graphique"><h5>${esc(titre)}</h5>
@@ -108,7 +119,7 @@ export function barresHorizontales(titre, lignes, groupes, titreValeurs) {
   const x = (v) => gauche + (L - gauche - d) * (v / haut);
   let svg = "";
   for (const t of ticks) {
-    svg += `<line x1="${x(t)}" x2="${x(t)}" y1="4" y2="${H - bas}" stroke="#eef0f3"/>`;
+    svg += `<line x1="${x(t)}" x2="${x(t)}" y1="4" y2="${H - bas}" stroke="${COULEURS.grille}"/>`;
     svg += `<text x="${x(t)}" y="${H - bas + 16}" text-anchor="middle">${nombre(t, 0)}</text>`;
   }
   lignes.forEach((l, k) => {

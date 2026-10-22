@@ -50,14 +50,17 @@ function onglets(groupe) {
   });
 }
 
+/** Classe CSS d'une couleur de résultat (favorable / alerte) : chaque thème choisit ses teintes. */
+const classeCouleur = (couleur) =>
+  couleur === DONNEES.couleurOk ? "ok" : couleur === DONNEES.couleurAlerte ? "alerte" : "";
 const carte = ({ titre, valeur: texte, aide, couleur }) =>
   `<div class="carte"${aide ? ` title="${esc(aide)}"` : ""}><div class="titre">${esc(titre)}</div>` +
-  `<div class="valeur"${couleur ? ` style="color:${couleur}"` : ""}>${texte}</div></div>`;
+  `<div class="valeur ${classeCouleur(couleur)}">${texte}</div></div>`;
 const cartes = (id, liste) => { $(id).innerHTML = liste.map(carte).join(""); };
-const valeurColoree = (texte, couleur) => (couleur ? `<b style="color:${couleur}">${texte}</b>` : `<b>${texte}</b>`);
+const valeurColoree = (texte, couleur) => `<b class="${classeCouleur(couleur)}">${texte}</b>`;
 
 function message(id, lignes) {
-  $(id).innerHTML = lignes.map((l) => `⚠ ${esc(l)}`).join("<br>");
+  $(id).innerHTML = lignes.map((l) => `<b>Attention :</b> ${esc(l)}`).join("<br>");
   $(id).hidden = !lignes.length;
 }
 
@@ -441,3 +444,9 @@ $("resume-mobile").addEventListener("click", () => {
 initialiserCredit();
 initialiserEpargne();
 resumeMobile("credit", etat.resume.credit);
+
+// Liens directs vers un simulateur, pratiques pour partager avec des élèves :
+// ?type=conso|auto|immo pour un type de crédit, ?simulateur=epargne pour l'épargne.
+const adresse = new URLSearchParams(location.search);
+if (PROFILS[adresse.get("type")]) document.querySelector(`#types-credit [data-type="${adresse.get("type")}"]`).click();
+if (adresse.get("simulateur") === "epargne") document.querySelector('[data-activite="epargne"]').click();

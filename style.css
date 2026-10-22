@@ -1,19 +1,30 @@
-/* Simulateur de crédit et d'épargne — même apparence que l'application de bureau, thème clair uniquement. */
+/* Simulateur de crédit et d'épargne — style « relevé bancaire » : chasse fixe, filets pointillés,
+   colonnes de chiffres alignées. Thème clair uniquement. */
 :root {
-  color-scheme: light;
-  --fond: #f5f6f8;
-  --surface: #ffffff;
-  --bordure: #e6e8ec;
-  --bordure-champ: #d6d9df;
-  --texte: #111827;
-  --texte-2: #6b7280;
-  --texte-3: #374151;
-  --accent: #2563eb;
-  --accent-clair: #eff6ff;
-  --ok: #059669;
-  --alerte: #dc2626;
-  --formule: #eef3fa;
-  --rayon: 10px;
+  --fond: #f4f3ee;
+  --surface: #fdfdf9;
+  --bordure: #c9c6b8;
+  --bordure-champ: #9c9888;
+  --texte: #1e1e1b;
+  --texte-2: #6d6a5e;
+  --texte-3: #2c2b27;
+  --accent: #0f5c57;
+  --accent-clair: #e2eeec;
+  --ok: #0f5c57;
+  --alerte: #b3261e;
+  --formule: #f1efe6;
+  --rayon: 0;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --graphe-capital: #0f5c57;
+  --graphe-interets: #c98a2b;
+  --graphe-assurance: #7a8f6a;
+  --graphe-frais: #8b6f9e;
+  --graphe-depenses: #c4c0b0;
+  --graphe-alerte: #b3261e;
+  --graphe-ligne: #1e1e1b;
+  --graphe-grille: #e8e5da;
+  --graphe-axe: #9c9888;
+  --graphe-fond: #fdfdf9;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--fond); color: var(--texte); }
@@ -104,6 +115,9 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
   padding: 10px 14px; line-height: 1.6;
 }
 .indicateurs:empty { display: none; }
+/* Résultats favorables / en alerte */
+.ok { color: var(--ok); }
+.alerte { color: var(--alerte); }
 .indicateurs b { white-space: nowrap; }
 
 /* Onglets soulignés */
@@ -201,3 +215,56 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
   .cartes.cles .valeur { font-size: 21px; }
   .explication { padding: 4px 12px 16px; }
 }
+
+/* ======================================================================= habillage « relevé bancaire » */
+body, button, input, select { font-family: var(--mono); font-size: 13px; }
+body { background: var(--fond); }
+
+.entete { border-bottom: 1px dashed var(--bordure-champ); }
+.titre-app { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; }
+.badge { background: none; color: var(--texte-2); border: 1px solid var(--bordure-champ); border-radius: 0; }
+.segmente { background: none; border: 1px solid var(--bordure-champ); border-radius: 0; padding: 0; gap: 0; }
+.segmente button { border-radius: 0; border: none; }
+.segmente button.actif { background: var(--texte); color: var(--surface); }
+
+.lateral { background: var(--surface); border-right: 1px dashed var(--bordure-champ); }
+.lateral h4 { color: var(--texte); letter-spacing: 0.12em; border-bottom: 1px dashed var(--bordure-champ); padding-bottom: 4px; }
+.lateral h4::before { content: "== "; color: var(--texte-2); }
+.saisie input, select { border-radius: 0; text-align: right; }
+.saisie input { padding-right: 52px; }
+.saisie input:focus, select:focus { box-shadow: none; border-color: var(--accent); }
+.message { border-radius: 0; background: none; border: 1px dashed var(--alerte); }
+
+/* Résultats en lignes de relevé */
+.cartes { gap: 0; background: var(--surface); border: 1px solid var(--bordure-champ); }
+.carte { border: none; border-radius: 0; border-bottom: 1px dashed var(--bordure); background: none; }
+.carte .titre { text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; }
+.carte .valeur { font-size: 16px; font-weight: 600; }
+.cartes.cles .valeur { color: var(--texte); font-size: 26px; font-weight: 700; }
+.cartes.cles > .carte:first-child .valeur { color: var(--accent); }
+.indicateurs { border-radius: 0; border: 1px dashed var(--bordure-champ); background: var(--surface); }
+.onglets { border-bottom: 1px solid var(--texte); gap: 0; }
+.onglets button { padding: 6px 12px; border: none; margin: 0; text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em; }
+.onglets button.actif { background: var(--texte); color: var(--surface); }
+.onglets button.actif::before { content: "> "; }
+.panneaux { border-radius: 0; border: 1px solid var(--bordure-champ); border-top: none; }
+.graphique h5 { text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; }
+.tableau th { text-transform: uppercase; color: var(--texte); border-bottom: 1px solid var(--texte); }
+.tableau td { border-bottom: 1px dotted var(--bordure); }
+.tableau tbody tr:nth-child(even) { background: none; }
+.tableau tr.courante { background: var(--accent-clair) !important; }
+.tableau tr.bascule { background: #f6ecc9 !important; }
+.bouton { border-radius: 0; }
+
+.explication h2 { color: var(--texte); text-transform: uppercase; letter-spacing: 0.06em; font-size: 17px; }
+.explication h3 { color: var(--accent); font-size: 14px; }
+.formule { border-radius: 0; border: 1px dashed var(--bordure-champ); background: var(--formule); }
+.etapes { border-radius: 0; }
+.etapes td { border-bottom: 1px dotted var(--bordure); }
+.pied-de-page { border-top: 1px dashed var(--bordure-champ); }
+.resume-mobile b { color: var(--accent); }
+
+/* La chasse fixe élargit l'en-tête : on masque d'abord l'avertissement (répété en pied de page),
+   puis le badge, pour que l'en-tête tienne sur une ligne (le panneau latéral s'aligne dessous) */
+@media (max-width: 1500px) { .avertissement-entete { display: none; } }
+@media (max-width: 1200px) { .badge { display: none; } }
