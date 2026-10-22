@@ -433,7 +433,7 @@ segmente(document.querySelector(".navigation .segmente"), "activite", (activite)
   resumeMobile(activite, etat.resume[activite] || []);
   $("page-credit").hidden = activite !== "credit";
   $("page-epargne").hidden = activite !== "epargne";
-  $("types-credit").hidden = activite !== "credit";
+  $("types-credit").classList.toggle("masque", activite !== "credit");
 });
 $("resume-mobile").addEventListener("click", () => {
   document.querySelector(`#page-${etat.activite} .resultats`).scrollIntoView({ behavior: "smooth" });

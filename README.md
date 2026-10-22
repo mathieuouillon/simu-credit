@@ -1,166 +1,98 @@
-<img src="simu_credit/assets/logo.png" width="96" alt="Logo">
+<img src="logo.svg" width="96" alt="Logo">
 
 # Simulateur de crédit et d'épargne
 
+**https://mathieuouillon.github.io/simu-credit/** — à utiliser directement dans le navigateur, sans rien installer,
+sur ordinateur, tablette ou téléphone.
+
 > **Outil pédagogique**, destiné uniquement à l'enseignement. Les résultats ne constituent ni une offre
-> de prêt, ni un conseil financier. Les taux de référence sont des exemples relevés à une date donnée.
-
-**Version web, sans rien installer : https://mathieuouillon.github.io/simu-credit/**
-
-Application de bureau (PySide6 / Qt) pour simuler un crédit **à la consommation**, **auto** ou **immobilier**,
-ainsi qu'une **épargne** à versements réguliers (onglet « Épargne » de l'en-tête).
-Un menu « Type de crédit » adapte le formulaire (champs affichés et valeurs par défaut) ; les résultats se recalculent à chaque modification.
-
-## Lancer
-
-```bash
-uv run simu-credit
-```
+> de prêt ou de placement, ni un conseil financier. Les taux de référence sont des exemples relevés à une date donnée.
 
 ## Fonctionnalités
 
-- **Comment c'est calculé** : onglet qui détaille chaque étape avec les chiffres de la simulation en cours
-  (montant emprunté, taux mensuel, formule de la mensualité, part intérêts/capital, assurance, coût total,
-  TAEG décomposé en effet actuariel + assurance + frais, poids dans le budget), une rubrique « À retenir »
-  générée automatiquement (effet d'une durée plus longue ou plus courte, part des intérêts…) et un lexique.
-- **Point de bascule** : la première échéance où l'on rembourse plus de capital que d'intérêts est expliquée
-  et surlignée dans le tableau d'amortissement.
-- **Lexique en infobulle** sur les cartes de résultats (TAEG, taux nominal, assurance…).
-- **Deux modes** : partir du **montant** (prix du bien ou du véhicule) ou de la **mensualité** qu'on veut payer.
-  Dans ce second mode, le simulateur donne le montant empruntable et, en auto et en immobilier, le prix maximum
-  du véhicule ou du bien.
-- **Taux de référence** (case « Réf. ») : taux pré-rempli selon la durée, à partir de taux relevés en octobre 2026
-  (Meilleurtaux pour l'immobilier, interpolé entre 10, 15, 20 et 25 ans ; Cetelem pour la conso et l'auto).
-  Décocher la case pour saisir son propre taux. Les grilles sont dans `TAUX_MEILLEURTAUX` et `TAUX_CETELEM`
-  ([gui.py](simu_credit/gui.py)) et sont à mettre à jour de temps en temps.
-- **Assurance** calculée sur le capital initial (montant fixe) ou sur le capital restant dû (montant qui baisse).
-- **Comparer les durées** : mensualité, coût total, TAEG (et endettement en immobilier) pour plusieurs durées
-  côte à côte ; un double-clic sur une ligne retient cette durée.
-- **Budget du foyer** (pour les trois types) : revenus, autres crédits et dépenses courantes (logement,
-  alimentation, transport, énergie, abonnements, loisirs). L'onglet « Budget » montre la part du crédit dans
-  le revenu et dans l'ensemble des dépenses, le taux d'endettement, le solde du mois (en rouge s'il est
-  négatif) et un graphique de répartition du revenu. Les postes et leurs valeurs par défaut sont dans
-  `POSTES_BUDGET` ([gui.py](simu_credit/gui.py)).
-- **Consommation** : avertissement hors du cadre légal (200 € à 75 000 €).
-- **Auto** : apport et reprise ; part financée et coût total du véhicule.
-- **Immobilier** : ancien ou neuf (frais de notaire 7,5 % / 2,5 %, modifiables), travaux, apport, garantie ;
-  capacité d'emprunt au seuil HCSF de 35 % d'endettement.
-- Pour chaque crédit : mensualité, **TAEG** (actuariel, frais et assurance inclus), coût total, graphiques,
-  tableau d'amortissement mensuel exportable en CSV (format Excel français).
+**Crédit** (consommation, auto, immobilier)
 
-## Épargne
+- Calcul à partir du **montant** ou de la **mensualité** souhaitée (montant empruntable, prix maximum du bien
+  ou du véhicule).
+- **Taux de référence** pré-rempli selon la durée (case « Réf. ») ou saisi librement ; assurance sur le capital
+  initial ou sur le capital restant dû ; frais de dossier, garantie, frais de notaire, travaux, apport, reprise.
+- Mensualité, **TAEG**, coût total, graphiques, **comparaison de plusieurs durées**, tableau d'amortissement
+  (export CSV, point de bascule capital / intérêts surligné).
+- **Budget du foyer** : part du crédit dans le revenu, taux d'endettement (seuil HCSF de 35 %), solde du mois,
+  capacité d'emprunt en immobilier.
 
-- **Placements de référence** (octobre 2026) : Livret A et LDDS 1,7 %, LEP 2,5 %, PEL ouvert en 2026 2 %
-  (PFU 30 %), assurance vie fonds en euros 2,63 % (moyenne 2025, ACPR ; prélèvements sociaux 17,2 %),
-  ou placement personnalisé. Comme pour le taux du crédit, une case « Réf. » à côté du taux et des
-  prélèvements donne la valeur actuelle ; la décocher permet de saisir sa propre valeur. Liste et sources dans `PLACEMENTS`
-  ([ecran_epargne.py](simu_credit/ecran_epargne.py)).
-- Deux modes : partir des **versements** (capital final) ou d'un **objectif** (versement mensuel nécessaire).
-- Capital final, intérêts nets, impôt et prélèvements, rendement net et **réel** (après inflation),
-  valeur en euros d'aujourd'hui ; avertissement si un plafond de versements est dépassé ou si
-  l'épargne perd du pouvoir d'achat.
-- Onglets : graphique « boule de neige », **Comment c'est calculé** (taux équivalent, intérêts composés,
-  formule de la valeur acquise, fiscalité, inflation, règle de 72, effet de commencer 5 ans plus tôt),
-  comparaison de tous les placements, tableau année par année.
-- Hypothèses : taux mensuel équivalent (1 + r)^(1/12) − 1, versements en fin de mois, intérêts capitalisés
-  chaque mois, prélèvements retenus le 31 décembre ; l'impôt sur le revenu de l'assurance vie (dû au
-  retrait) n'est pas simulé. Moteur de calcul : [epargne.py](simu_credit/epargne.py).
+**Épargne** (Livret A, LDDS, LEP, PEL, assurance vie en fonds euros, ou placement personnalisé)
+
+- À partir des **versements** (capital final) ou d'un **objectif** (versement mensuel nécessaire).
+- Taux et prélèvements de référence (case « Réf. ») ou modifiables ; inflation, rendement net et **réel**,
+  valeur en euros d'aujourd'hui ; avertissement en cas de dépassement d'un plafond.
+- Graphique « boule de neige », comparaison des placements, tableau année par année.
+
+**Pédagogie** : l'onglet **« Comment c'est calculé »** détaille chaque formule avec les chiffres de la simulation
+(mensualité, intérêts puis capital, TAEG décomposé, intérêts composés, inflation, règle de 72…), suivi d'une
+rubrique « À retenir » et d'un lexique ; les définitions apparaissent aussi au survol des résultats.
+
+Tous les calculs sont faits dans le navigateur : aucune donnée n'est envoyée.
 
 ## Hypothèses de calcul
 
-- Prêt amortissable à mensualités constantes, taux mensuel = taux annuel / 12 (convention française).
-- Avec une assurance sur le capital restant dû, la mensualité affichée est la 1re, la plus élevée : c'est elle
-  qui sert au taux d'endettement et au mode « mensualité ».
-- Frais (dossier, garantie) payés au départ : ils entrent dans le coût total et le TAEG.
+- **Crédit** : prêt amortissable à mensualités constantes ; taux mensuel = taux annuel / 12 (convention
+  française) ; TAEG actuariel incluant frais et assurance ; frais payés au départ. Avec une assurance sur le
+  capital restant dû, la mensualité affichée est la première, la plus élevée.
+- **Épargne** : taux mensuel équivalent (1 + r)^(1/12) − 1 ; versements en fin de mois ; intérêts capitalisés
+  chaque mois ; prélèvements retenus le 31 décembre ; l'impôt sur le revenu de l'assurance vie, dû au retrait,
+  n'est pas simulé.
 
-## Validation
+## Organisation du code
 
-Les tests recalculent à l'identique des exemples publiés en octobre 2026 : le tableau 250 000 € sur
-10 à 25 ans de Meilleurtaux (mensualités et coûts à l'euro près), l'exemple Cetelem (15 000 € sur 48 mois,
-TAEG 5,49 %) et un exemple BNP Paribas (150 000 € sur 25 ans à 2,31 %).
+Site statique, sans dépendance ni étape de construction :
 
-## Application autonome (sans installation)
-
-L'application peut être livrée comme un fichier qu'on ouvre d'un double-clic, sans Python ni installation.
-Elle est construite avec PyInstaller, **sur chaque système pour ce système** :
-
-```bash
-uv run pyinstaller simu_credit.spec --noconfirm
-```
-
-- **macOS** : `dist/Simulateur de credit.app` (≈ 120 Mo, 39 Mo zippé). À distribuer zippé :
-  `ditto -c -k --keepParent "dist/Simulateur de credit.app" Simulateur-de-credit-macOS.zip`
-- **Windows** : `dist/SimulateurCredit.exe`, un seul fichier.
-
-### Publier une nouvelle version
-
-Le workflow [construire.yml](.github/workflows/construire.yml) construit les versions Windows,
-macOS Apple Silicon et macOS Intel sur GitHub et publie la release automatiquement :
-
-1. mettre à jour `__version__` dans [simu_credit/__init__.py](simu_credit/__init__.py), committer et pousser ;
-2. créer et pousser l'étiquette correspondante :
-
-```bash
-git tag v0.2.0
-```
-
-```bash
-git push origin v0.2.0
-```
-
-GitHub relance les tests, construit les trois fichiers puis crée la release avec eux (le texte de
-[NOTES_RELEASE.md](.github/NOTES_RELEASE.md) suivi de la liste des changements). La publication est
-refusée si l'étiquette ne correspond pas à `__version__` ou si un test échoue.
-
-Le logo et les icônes (`icones/icone.icns` pour macOS, `icones/icone.ico` pour Windows) sont générés à partir
-d'un seul dessin vectoriel par [generer_icones.py](outils/generer_icones.py) :
-
-```bash
-uv run python outils/generer_icones.py
-```
-
-**Premier lancement** (l'application n'est pas signée par un éditeur reconnu) :
-
-- **macOS** : double-clic, puis *Réglages Système > Confidentialité et sécurité > Ouvrir quand même*.
-  Ou, dans le Terminal : `xattr -dr com.apple.quarantine "Simulateur de credit.app"`.
-- **Windows** : à l'écran bleu « Windows a protégé votre ordinateur », cliquer
-  *Informations complémentaires > Exécuter quand même*.
-
-Ces avertissements disparaissent avec une signature officielle (compte développeur Apple, 99 $/an ;
-certificat de signature de code sous Windows).
-
-## Version web
-
-Le dossier [web/](web/) contient le même simulateur en HTML/JavaScript, publié sur GitHub Pages par
-[site.yml](.github/workflows/site.yml) à chaque modification de `main`. Les calculs sont faits dans le
-navigateur ; aucune donnée n'est envoyée.
-
-Le code Python reste la référence :
-
-- [scenarios.py](simu_credit/scenarios.py) rassemble la logique et les données communes (profils, taux,
-  placements) ; l'application de bureau l'utilise, et [generer_web.py](outils/generer_web.py) en exporte
-  les données pour le site (`web/js/donnees.js`) ;
-- le même script calcule en Python des centaines de cas de référence, que la version JavaScript doit
-  reproduire exactement : chiffres à 10⁻⁹ près, textes affichés au caractère près.
-
-```bash
-uv run python outils/generer_web.py
-```
-
-```bash
-node --test web/tests/coherence.test.mjs
-```
-
-Pour essayer le site en local :
-
-```bash
-python3 -m http.server 8765 --directory web
-```
+| Fichier | Rôle |
+|---|---|
+| [index.html](index.html), [style.css](style.css) | page et mise en forme |
+| [js/donnees.js](js/donnees.js) | **taux de référence**, profils de crédit, placements, budget, lexiques — à mettre à jour ici |
+| [js/calcul.js](js/calcul.js) | moteur de crédit : mensualité, tableau d'amortissement, TAEG, budget |
+| [js/epargne.js](js/epargne.js) | moteur d'épargne |
+| [js/scenarios.js](js/scenarios.js) | logique par type de crédit : montant emprunté, indicateurs, avertissements |
+| [js/pedagogie.js](js/pedagogie.js) | explications pas à pas |
+| [js/formats.js](js/formats.js) | nombres à la française |
+| [js/graphiques.js](js/graphiques.js) | graphiques SVG |
+| [js/app.js](js/app.js) | interface : formulaire, onglets, affichage |
 
 ## Tests
 
 ```bash
-uv run pytest
+npm test
 ```
 
-Le moteur de calcul (`simu_credit/calcul.py`) ne dépend pas de l'interface et peut être utilisé seul.
+- **Exemples publiés** recalculés à l'identique : Meilleurtaux (250 000 € sur 10 à 25 ans), Cetelem
+  (15 000 € sur 48 mois, TAEG 5,49 %), BNP Paribas, Livret A.
+- **Audit** sur des centaines de prêts et d'épargnes tirés au hasard : chaque résultat est recalculé par une
+  méthode indépendante (dichotomie, méthode de Newton, définition réglementaire du TAEG, formule fermée).
+- **Non-régression** : [tests/references.json](tests/references.json) contient des cas validés par
+  l'implémentation Python d'origine ; le code doit les reproduire (chiffres à 10⁻⁹ près, textes au caractère
+  près). Après un changement voulu des résultats (texte reformulé, nouvelle règle), relire les écarts signalés
+  puis réenregistrer les références :
+
+```bash
+node tests/mettre-a-jour-references.mjs
+```
+
+## Publication
+
+Chaque modification de la branche `main` relance les tests puis publie le site sur GitHub Pages
+([site.yml](.github/workflows/site.yml)) ; si un test échoue, le site n'est pas mis à jour.
+
+Pour l'essayer en local :
+
+```bash
+npm run site
+```
+
+puis ouvrir http://localhost:8765.
+
+## Historique
+
+Les versions 0.1 et 0.2 étaient une application de bureau en Python (PySide6), toujours téléchargeable dans les
+[releases](https://github.com/mathieuouillon/simu-credit/releases) ; son code reste dans l'historique Git
+(étiquette `v0.2.0`). Depuis la version 0.3, le site web est la seule version maintenue.

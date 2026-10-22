@@ -37,6 +37,9 @@ button, input, select { font: inherit; color: inherit; }
   padding: 2px 10px; font-size: 11px; font-weight: 600;
 }
 .navigation { flex: 1; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+/* Sur la page Épargne, les types de crédit deviennent invisibles mais gardent leur place :
+   le choix Crédit / Épargne ne bouge pas quand on clique dessus */
+#types-credit.masque { visibility: hidden; }
 .avertissement-entete { color: var(--texte-2); font-size: 11px; }
 
 /* Boutons segmentés */
@@ -169,6 +172,9 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 /* Écrans étroits (tablettes, téléphones) : le formulaire passe au-dessus des résultats */
 @media (max-width: 980px) {
   .entete { position: static; }
+  /* Navigation alignée à gauche : rien ne bouge non plus quand les types de crédit disparaissent */
+  .navigation { justify-content: flex-start; }
+  #types-credit.masque { display: none; } /* navigation alignée à gauche : rien ne bouge */
   .page { grid-template-columns: 1fr; }
   .lateral { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--bordure); }
   body { padding-bottom: 64px; }
@@ -186,7 +192,6 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 @media (max-width: 560px) {
   .entete { padding: 8px 12px; gap: 8px; }
   .titre-app, .badge { display: none; }
-  .navigation { justify-content: flex-start; }
   .segmente button { padding: 5px 9px; }
   .resultats { padding: 12px; }
   .lateral { padding: 4px 14px 18px; }

@@ -1,8 +1,10 @@
-*.pyc
-.pytest_cache/
-.venv/
-__pycache__/
+.claude/
+node_modules/
+.DS_Store
+# Restes locaux de l'ancienne application Python (non suivis)
 build/
 dist/
-web/tests/cas_reference.json
-.claude/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

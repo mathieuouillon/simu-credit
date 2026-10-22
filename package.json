@@ -1,0 +1,14 @@
+{
+  "name": "simu-credit",
+  "version": "0.3.0",
+  "description": "Simulateur de crédit et d'épargne pédagogique, sur le web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "site": "python3 -m http.server 8765"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
