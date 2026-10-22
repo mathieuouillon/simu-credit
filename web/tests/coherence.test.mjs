@@ -1,6 +1,6 @@
 // Vérifie que la version JavaScript donne exactement les mêmes résultats que le code Python.
 // Les cas de référence sont produits par : uv run python outils/generer_web.py
-// Lancement : node --test web/tests/
+// Lancement : node --test web/tests/coherence.test.mjs
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

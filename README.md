@@ -148,7 +148,7 @@ uv run python outils/generer_web.py
 ```
 
 ```bash
-node --test web/tests/
+node --test web/tests/coherence.test.mjs
 ```
 
 Pour essayer le site en local :

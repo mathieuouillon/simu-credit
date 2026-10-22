@@ -36,7 +36,7 @@ jobs:
             exit 1
           }
       - name: JavaScript identique à Python (cas de référence)
-        run: node --test web/tests/
+        run: node --test web/tests/coherence.test.mjs
       - name: Préparation du site
         run: |
           mkdir _site
